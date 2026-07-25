@@ -17,18 +17,23 @@
 }
 
 body {
-  min-width: 320px;
+  min-width: 340px;
   margin: 0;
 }
 
 .popup {
   display: grid;
-  gap: 8px;
+  gap: 18px;
   padding: 20px;
 }
 
+.popup__header {
+  display: grid;
+  gap: 6px;
+}
+
 .popup__eyebrow,
-.popup__description,
+.popup__privacy,
 .popup__title {
   margin: 0;
 }
@@ -46,8 +51,63 @@ body {
   line-height: 1.2;
 }
 
-.popup__description {
+.status-list {
+  overflow: hidden;
+  border: 1px solid #303038;
+  border-radius: 8px;
+  background: #1f1f23;
+}
+
+.status-row {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.status-row + .status-row {
+  border-top: 1px solid #303038;
+}
+
+.status-row__label {
   color: #adadb8;
-  font-size: 14px;
+}
+
+.status-row__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.status-row__indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #adadb8;
+}
+
+.status-row__value[data-health='ready'] .status-row__indicator {
+  background: #00c274;
+}
+
+.status-row__value[data-health='unavailable'] .status-row__indicator {
+  background: #eb0400;
+}
+
+.status-row__value[data-health='pending'] .status-row__indicator {
+  background: #ffb31a;
+}
+
+.status-row__environment {
+  font-weight: 600;
+}
+
+.popup__privacy {
+  color: #adadb8;
+  font-size: 12px;
   line-height: 1.5;
 }
