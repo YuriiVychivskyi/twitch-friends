@@ -1,0 +1,43 @@
+:host {
+  container-type: inline-size;
+  display: block;
+  color: var(--color-text-base, #efeff1);
+  font-family: var(--font-base, Inter, Roobert, 'Helvetica Neue', Helvetica, Arial, sans-serif);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.friends-section {
+  padding-bottom: 8px;
+}
+
+.friends-section__heading {
+  margin: 0;
+  padding: 10px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.friends-section__empty {
+  margin: 0;
+  padding: 8px 10px 12px;
+  overflow: hidden;
+  color: var(--color-text-alt, #adadb8);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 80px) {
+  .friends-section {
+    display: none;
+  }
+}
