@@ -24,6 +24,16 @@ const RESERVED_PATHS = new Set([
   'wallet',
 ]);
 
+export function normalizeTwitchLogin(value: string) {
+  const login = value.trim().toLowerCase();
+
+  if (RESERVED_PATHS.has(login) || !/^[a-z0-9_]{1,25}$/u.test(login)) {
+    return null;
+  }
+
+  return login;
+}
+
 export function parseTwitchChannel(value: string): TwitchChannel | null {
   let url: URL;
 
@@ -43,9 +53,9 @@ export function parseTwitchChannel(value: string): TwitchChannel | null {
     return null;
   }
 
-  const login = segments[0]?.toLowerCase();
+  const login = normalizeTwitchLogin(segments[0] ?? '');
 
-  if (!login || RESERVED_PATHS.has(login) || !/^[a-z0-9_]{1,25}$/u.test(login)) {
+  if (!login) {
     return null;
   }
 

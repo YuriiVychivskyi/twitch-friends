@@ -14,6 +14,7 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 - Anonymous Firebase authentication
 - Local ECDH and ECDSA identity with non-extractable private keys
 - Popup privacy control with presence sharing disabled by default
+- Local friend storage with Twitch login validation
 - Firestore and Realtime Database rules that deny access by default
 - Local Firebase Emulator Suite workflow
 
@@ -86,7 +87,7 @@ bundle and must never contain secrets.
 
 ## Next steps
 
-- Add local friend records
+- Add friend controls to the popup
 - Design mutual friend invitations
 - Publish short-lived encrypted presence
 - Add presence expiry and reconnect handling
