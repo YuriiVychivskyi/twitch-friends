@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 
+import { FriendsPanel } from '@/features/friends/FriendsPanel';
 import { getPrivacySettings, setPresenceSharingEnabled } from '@/features/privacy/privacySettings';
 import {
   ACTIVE_CHANNEL_GET,
@@ -205,6 +206,8 @@ export function PopupApp() {
           Could not save the privacy setting.
         </p>
       ) : null}
+
+      <FriendsPanel />
 
       <p className="popup__privacy">Viewing history is not collected or stored.</p>
     </main>

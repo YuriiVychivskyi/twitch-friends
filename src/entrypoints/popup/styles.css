@@ -147,6 +147,91 @@ body {
   font-size: 12px;
 }
 
+.friends-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.friends-panel__title,
+.friends-panel__empty {
+  margin: 0;
+}
+
+.friends-panel__title {
+  font-size: 14px;
+}
+
+.friend-form {
+  display: flex;
+  gap: 8px;
+}
+
+.friend-form__input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #53535f;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #efeff1;
+  background: #18181b;
+  font: inherit;
+}
+
+.friend-form__input:focus {
+  border-color: #a970ff;
+  outline: none;
+}
+
+.friend-form__button {
+  border: 0;
+  border-radius: 4px;
+  padding: 0 14px;
+  color: #fff;
+  background: #9147ff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.friend-form__button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.friends-panel__empty,
+.friend-list__status {
+  color: #adadb8;
+  font-size: 12px;
+}
+
+.friend-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.friend-list__login,
+.friend-list__status {
+  display: block;
+}
+
+.friend-list__login {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.friend-list__remove {
+  border: 0;
+  padding: 4px;
+  color: #adadb8;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.friend-list__remove:hover {
+  color: #fff;
+}
+
 .popup__privacy {
   color: #adadb8;
   font-size: 12px;
