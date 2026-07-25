@@ -17,7 +17,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "check": "npm run format:check && npm run lint && npm run typecheck",
+    "test": "vitest run src",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "firebase:emulators": "firebase emulators:start --project demo-twitch-friends --only auth,database,firestore",
     "test:rules": "firebase emulators:exec --project demo-twitch-friends --only auth,database,firestore \"vitest run firebase/rules/rules.test.ts\""
   },
@@ -39,6 +40,7 @@
     "@wxt-dev/module-react": "1.2.2",
     "eslint": "10.8.0",
     "eslint-plugin-react-hooks": "7.1.1",
+    "fake-indexeddb": "6.2.5",
     "firebase-tools": "15.24.0",
     "globals": "17.7.0",
     "prettier": "3.9.6",
