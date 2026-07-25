@@ -1,158 +1,93 @@
 # Twitch Friends
 
-[![Release channel](https://img.shields.io/badge/release-beta-9147ff)](#roadmap)
-[![WXT](https://img.shields.io/badge/WXT-0.20-646cff)](https://wxt.dev)
-[![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178c6)](https://www.typescriptlang.org)
+A browser extension that adds a small friends section to the Twitch sidebar. The goal is to let
+trusted friends share which live channel they are watching without collecting viewing history.
 
-Twitch Friends is a private, opt-in browser extension that brings friend presence back to
-Twitch. Trusted friends will be able to share which live channel they are currently watching
-and view each other's presence directly from Twitch.
+The project is currently in early development. The extension shell, Twitch sidebar mount, local
+identity, Firebase emulator setup, and fail-closed database rules are working.
 
-> The project is in active beta development. The extension foundation is ready, while friend
-> presence and Twitch sidebar integration are planned for the first beta release.
+## Current state
 
-## Product
+- Chrome Manifest V3 and Firefox builds
+- Friends placeholder mounted in Twitch's sidebar
+- Anonymous Firebase authentication
+- Local ECDH and ECDSA identity with non-extractable private keys
+- Firestore and Realtime Database rules that deny access by default
+- Local Firebase Emulator Suite workflow
 
-Twitch Friends is designed for small, trusted groups. Every user controls whether their current
-viewing activity is shared. Friend relationships are mutual, presence is temporary, and viewing
-history is not retained.
-
-```text
-Twitch tab
-   │
-   ├── Detect active stream
-   │
-   ├── Publish temporary presence
-   │
-   └── Render trusted friends in the Twitch sidebar
-```
-
-## Status
-
-| Capability                        | Status    | Target |
-| --------------------------------- | --------- | ------ |
-| Chrome Manifest V3 foundation     | Available | `0.1`  |
-| Firefox build foundation          | Available | `0.1`  |
-| Extension popup                   | Available | `0.1`  |
-| Local settings and friend storage | Planned   | Beta 1 |
-| Twitch SPA and player detection   | Planned   | Beta 1 |
-| Twitch sidebar integration        | Planned   | Beta 1 |
-| Mutual friend invitations         | Planned   | Beta 2 |
-| Realtime presence relay           | Planned   | Beta 2 |
-| Presence expiry and reconnect     | Planned   | Beta 2 |
-| End-to-end encrypted presence     | Planned   | Beta 3 |
-
-## Architecture
-
-| Area           | Responsibility                                                            |
-| -------------- | ------------------------------------------------------------------------- |
-| Content script | Detect Twitch navigation, observe playback, and mount isolated sidebar UI |
-| Background     | Coordinate extension lifecycle, presence, and browser messaging           |
-| Popup          | Manage identity, friends, privacy, and connection state                   |
-| Local storage  | Store user settings, friend records, and cryptographic identity           |
-| Firestore      | Store public identity material, invitations, and mutual grants            |
-| Realtime DB    | Forward short-lived encrypted presence between connected friends          |
-
-Firebase will not be the source of truth for local friend labels or viewing history. Private
-identity remains extension-owned local data.
-
-## Privacy
-
-- Presence sharing is disabled until explicitly enabled.
-- Friend access requires mutual confirmation.
-- Presence expires automatically when heartbeats stop.
-- Viewing history is not stored.
-- Realtime Database payloads will be end-to-end encrypted.
-- No Twitch credentials or session cookies are accessed.
-
-The complete security model is documented in
-[Security Architecture](docs/security-architecture.md).
-
-## Technology
-
-| Tool       | Purpose                                                   |
-| ---------- | --------------------------------------------------------- |
-| WXT        | Cross-browser extension tooling and manifest generation   |
-| React      | Popup and injected interface                              |
-| TypeScript | Strict application contracts                              |
-| ESLint     | Type-aware static analysis                                |
-| Prettier   | Deterministic formatting                                  |
-| Firebase   | Anonymous identity, durable grants, and realtime presence |
+Friend invitations and live presence sharing are not implemented yet.
 
 ## Development
 
-### Requirements
+Requirements:
 
 - Node.js 22 or newer
 - npm 11 or newer
 - Java 21 or newer for Firebase emulators
 
-### Setup
+Install dependencies and start the local services:
 
 ```bash
 npm install
+npm run firebase:emulators
+```
+
+In a second terminal, start the extension:
+
+```bash
 npm run dev
 ```
 
-### Commands
+For a static Chrome build:
 
-| Command                      | Description                                |
-| ---------------------------- | ------------------------------------------ |
-| `npm run dev`                | Start Chrome development mode              |
-| `npm run dev:firefox`        | Start Firefox development mode             |
-| `npm run check`              | Run formatting, linting, and type checking |
-| `npm run build`              | Build Chrome production output             |
-| `npm run build:firefox`      | Build Firefox production output            |
-| `npm run zip`                | Package the Chrome extension               |
-| `npm run zip:firefox`        | Package the Firefox extension              |
-| `npm run firebase:emulators` | Start local Firebase services              |
-| `npm run test:rules`         | Test Firebase Security Rules locally       |
-
-## Project structure
-
-```text
-src/
-  entrypoints/
-    background.ts
-    content.ts
-    popup/
-firebase/
-  rules/
-docs/
-eslint.config.js
-firebase.json
-tsconfig.json
-wxt.config.ts
+```bash
+npm run build
 ```
 
-Generated browser artifacts are written to `.output/`.
+Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select
+`.output/chrome-mv3`.
+
+## Commands
+
+| Command                      | Purpose                                       |
+| ---------------------------- | --------------------------------------------- |
+| `npm run dev`                | Start Chrome development mode                 |
+| `npm run dev:firefox`        | Start Firefox development mode                |
+| `npm run check`              | Run formatting, linting, types, and tests     |
+| `npm run build`              | Build the Chrome extension                    |
+| `npm run build:firefox`      | Build the Firefox extension                   |
+| `npm run firebase:emulators` | Start Auth, Firestore, and Database emulators |
+| `npm run test:rules`         | Test Firebase security rules                  |
+
+## Privacy
+
+- The extension does not read Twitch cookies or credentials.
+- Viewing history is not collected.
+- Private identity keys are generated and stored locally.
+- Firebase configuration contains public project identifiers, not server secrets.
+- Database access stays closed until a tested data model is added.
+
+See [docs/security-architecture.md](docs/security-architecture.md) for the current security model.
 
 ## Permissions
 
-| Permission                | Reason                                         |
-| ------------------------- | ---------------------------------------------- |
-| `storage`                 | Store extension-owned settings and friend data |
-| `https://www.twitch.tv/*` | Run the content script on Twitch pages         |
-
-New permissions must be documented before being added.
+| Permission                | Reason                                                 |
+| ------------------------- | ------------------------------------------------------ |
+| `storage`                 | Store extension-owned settings                         |
+| `https://www.twitch.tv/*` | Add the friends section on Twitch                      |
+| `http://127.0.0.1/*`      | Connect to Firebase emulators during local development |
 
 ## Environment
 
-Copy `.env.example` to `.env` for local configuration. Runtime-exposed configuration must use the
-`WXT_PUBLIC_` prefix. Secrets must never be included in extension environment variables or browser
-bundles.
+Copy `.env.example` to `.env`. Values prefixed with `WXT_PUBLIC_` are included in the extension
+bundle and must never contain secrets.
 
-## Roadmap
+## Next steps
 
-| Release | Scope                                                                 |
-| ------- | --------------------------------------------------------------------- |
-| Beta 1  | Local identity, friends, player detection, and Twitch sidebar UI      |
-| Beta 2  | Firebase invitations, encrypted presence, expiry, and reconnect       |
-| Beta 3  | End-to-end encryption, privacy controls, and cross-browser validation |
-| `1.0`   | Stable protocol, polished onboarding, packaging, and release workflow |
+- Add local friend records
+- Detect the active Twitch channel
+- Design mutual friend invitations
+- Publish short-lived encrypted presence
+- Add presence expiry and reconnect handling
 
-## Disclaimer
-
-Twitch Friends is an independent project and is not affiliated with, endorsed by, or sponsored
-by Twitch Interactive, Inc.
+Twitch Friends is an independent project and is not affiliated with Twitch Interactive, Inc.
