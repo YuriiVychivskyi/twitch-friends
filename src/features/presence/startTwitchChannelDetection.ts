@@ -5,6 +5,17 @@ import { ACTIVE_CHANNEL_UPDATE, parseTwitchChannel } from '@/features/presence/t
 export function startTwitchChannelDetection() {
   let previousUrl: string | null = null;
 
+  const sendChannelUpdate = async (url: string) => {
+    try {
+      await browser.runtime.sendMessage({
+        channel: parseTwitchChannel(url),
+        type: ACTIVE_CHANNEL_UPDATE,
+      });
+    } catch {
+      return;
+    }
+  };
+
   const updateChannel = () => {
     if (document.visibilityState !== 'visible') {
       previousUrl = null;
@@ -16,13 +27,7 @@ export function startTwitchChannelDetection() {
     }
 
     previousUrl = window.location.href;
-
-    void browser.runtime
-      .sendMessage({
-        channel: parseTwitchChannel(previousUrl),
-        type: ACTIVE_CHANNEL_UPDATE,
-      })
-      .catch(() => undefined);
+    void sendChannelUpdate(previousUrl);
   };
 
   const observer = new MutationObserver(updateChannel);
