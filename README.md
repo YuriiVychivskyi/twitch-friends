@@ -12,6 +12,7 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 - Friends placeholder mounted in Twitch's sidebar
 - Anonymous Firebase authentication
 - Local ECDH and ECDSA identity with non-extractable private keys
+- Presence sharing disabled by default in local privacy settings
 - Firestore and Realtime Database rules that deny access by default
 - Local Firebase Emulator Suite workflow
 
@@ -84,6 +85,7 @@ bundle and must never contain secrets.
 
 ## Next steps
 
+- Add privacy controls to the popup
 - Add local friend records
 - Detect the active Twitch channel
 - Design mutual friend invitations
