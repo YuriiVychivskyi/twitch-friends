@@ -3,6 +3,11 @@ import { browser } from 'wxt/browser';
 
 import { getPrivacySettings, setPresenceSharingEnabled } from '@/features/privacy/privacySettings';
 import {
+  ACTIVE_CHANNEL_GET,
+  isTwitchChannel,
+  type TwitchChannel,
+} from '@/features/presence/twitchChannel';
+import {
   isRuntimeStatus,
   RUNTIME_STATUS_REQUEST,
   type RuntimeHealth,
@@ -28,6 +33,7 @@ function healthText(item: StatusItem) {
 }
 
 export function PopupApp() {
+  const [activeChannel, setActiveChannel] = useState<TwitchChannel | null>(null);
   const [privacyError, setPrivacyError] = useState(false);
   const [privacyReady, setPrivacyReady] = useState(false);
   const [sharePresence, setSharePresence] = useState(false);
@@ -63,12 +69,23 @@ export function PopupApp() {
 
     const loadStatus = async () => {
       try {
-        const response: unknown = await browser.runtime.sendMessage({
+        const channelRequest: Promise<unknown> = browser.runtime.sendMessage({
+          type: ACTIVE_CHANNEL_GET,
+        });
+        const statusRequest: Promise<unknown> = browser.runtime.sendMessage({
           type: RUNTIME_STATUS_REQUEST,
         });
+        const [channelResponse, statusResponse] = await Promise.all([
+          channelRequest,
+          statusRequest,
+        ]);
 
-        if (active && isRuntimeStatus(response)) {
-          setStatus(response);
+        if (active) {
+          setActiveChannel(isTwitchChannel(channelResponse) ? channelResponse : null);
+
+          if (isRuntimeStatus(statusResponse)) {
+            setStatus(statusResponse);
+          }
         }
       } catch {
         if (active) {
@@ -143,6 +160,11 @@ export function PopupApp() {
             </span>
           </div>
         ))}
+
+        <div className="status-row">
+          <span className="status-row__label">Current channel</span>
+          <span className="status-row__environment">{activeChannel?.login ?? 'Not watching'}</span>
+        </div>
 
         <div className="status-row">
           <span className="status-row__label">Environment</span>

@@ -1,4 +1,9 @@
 import { getFirebaseEnvironment } from '@/config/firebaseEnvironment';
+import {
+  isActiveChannelRequest,
+  isActiveChannelUpdate,
+  type TwitchChannel,
+} from '@/features/presence/twitchChannel';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import {
   getRuntimeStatus,
@@ -7,6 +12,8 @@ import {
 } from '@/runtime/runtimeStatus';
 import { getOrCreateLocalIdentity } from '@/security/identity/localIdentity';
 import { browser } from 'wxt/browser';
+
+let activeChannel: TwitchChannel | null = null;
 
 async function initializeBackground() {
   try {
@@ -51,11 +58,21 @@ async function initializeBackground() {
 
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-    if (sender.id !== browser.runtime.id || !isRuntimeStatusRequest(message)) {
+    if (sender.id !== browser.runtime.id) {
       return false;
     }
 
-    sendResponse(getRuntimeStatus());
+    if (
+      isActiveChannelUpdate(message) &&
+      sender.tab &&
+      sender.url?.startsWith('https://www.twitch.tv/')
+    ) {
+      activeChannel = message.channel;
+    } else if (isActiveChannelRequest(message)) {
+      sendResponse(activeChannel);
+    } else if (isRuntimeStatusRequest(message)) {
+      sendResponse(getRuntimeStatus());
+    }
 
     return false;
   });

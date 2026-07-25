@@ -10,6 +10,7 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 
 - Chrome Manifest V3 and Firefox builds
 - Friends placeholder mounted in Twitch's sidebar
+- Active Twitch channel detection across page navigation
 - Anonymous Firebase authentication
 - Local ECDH and ECDSA identity with non-extractable private keys
 - Popup privacy control with presence sharing disabled by default
@@ -86,7 +87,6 @@ bundle and must never contain secrets.
 ## Next steps
 
 - Add local friend records
-- Detect the active Twitch channel
 - Design mutual friend invitations
 - Publish short-lived encrypted presence
 - Add presence expiry and reconnect handling
