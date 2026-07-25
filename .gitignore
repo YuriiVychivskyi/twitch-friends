@@ -35,6 +35,11 @@ pnpm-debug.log*
 
 .vercel/
 .netlify/
+.firebase/
+firebase-export/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
 
 .tmp/
 tmp/

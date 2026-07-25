@@ -51,10 +51,11 @@ Twitch tab
 | Background     | Coordinate extension lifecycle, presence, and browser messaging           |
 | Popup          | Manage identity, friends, privacy, and connection state                   |
 | Local storage  | Store user settings, friend records, and cryptographic identity           |
-| Relay          | Forward short-lived encrypted presence between connected friends          |
+| Firestore      | Store public identity material, invitations, and mutual grants            |
+| Realtime DB    | Forward short-lived encrypted presence between connected friends          |
 
-The relay will not be the source of truth for friend data or viewing history. Friend records and
-private identity remain extension-owned local data.
+Firebase will not be the source of truth for local friend labels or viewing history. Private
+identity remains extension-owned local data.
 
 ## Privacy
 
@@ -62,18 +63,22 @@ private identity remain extension-owned local data.
 - Friend access requires mutual confirmation.
 - Presence expires automatically when heartbeats stop.
 - Viewing history is not stored.
-- Relay payloads will be end-to-end encrypted.
+- Realtime Database payloads will be end-to-end encrypted.
 - No Twitch credentials or session cookies are accessed.
+
+The complete security model is documented in
+[Security Architecture](docs/security-architecture.md).
 
 ## Technology
 
-| Tool       | Purpose                                                 |
-| ---------- | ------------------------------------------------------- |
-| WXT        | Cross-browser extension tooling and manifest generation |
-| React      | Popup and injected interface                            |
-| TypeScript | Strict application contracts                            |
-| ESLint     | Type-aware static analysis                              |
-| Prettier   | Deterministic formatting                                |
+| Tool       | Purpose                                                   |
+| ---------- | --------------------------------------------------------- |
+| WXT        | Cross-browser extension tooling and manifest generation   |
+| React      | Popup and injected interface                              |
+| TypeScript | Strict application contracts                              |
+| ESLint     | Type-aware static analysis                                |
+| Prettier   | Deterministic formatting                                  |
+| Firebase   | Anonymous identity, durable grants, and realtime presence |
 
 ## Development
 
@@ -81,6 +86,7 @@ private identity remain extension-owned local data.
 
 - Node.js 22 or newer
 - npm 11 or newer
+- Java 21 or newer for Firebase emulators
 
 ### Setup
 
@@ -91,15 +97,17 @@ npm run dev
 
 ### Commands
 
-| Command                 | Description                                |
-| ----------------------- | ------------------------------------------ |
-| `npm run dev`           | Start Chrome development mode              |
-| `npm run dev:firefox`   | Start Firefox development mode             |
-| `npm run check`         | Run formatting, linting, and type checking |
-| `npm run build`         | Build Chrome production output             |
-| `npm run build:firefox` | Build Firefox production output            |
-| `npm run zip`           | Package the Chrome extension               |
-| `npm run zip:firefox`   | Package the Firefox extension              |
+| Command                      | Description                                |
+| ---------------------------- | ------------------------------------------ |
+| `npm run dev`                | Start Chrome development mode              |
+| `npm run dev:firefox`        | Start Firefox development mode             |
+| `npm run check`              | Run formatting, linting, and type checking |
+| `npm run build`              | Build Chrome production output             |
+| `npm run build:firefox`      | Build Firefox production output            |
+| `npm run zip`                | Package the Chrome extension               |
+| `npm run zip:firefox`        | Package the Firefox extension              |
+| `npm run firebase:emulators` | Start local Firebase services              |
+| `npm run test:rules`         | Test Firebase Security Rules locally       |
 
 ## Project structure
 
@@ -109,7 +117,11 @@ src/
     background.ts
     content.ts
     popup/
+firebase/
+  rules/
+docs/
 eslint.config.js
+firebase.json
 tsconfig.json
 wxt.config.ts
 ```
@@ -127,19 +139,16 @@ New permissions must be documented before being added.
 
 ## Environment
 
-```env
-WXT_PUBLIC_RELAY_URL=ws://localhost:8787
-```
-
-Runtime-exposed configuration must use the `WXT_PUBLIC_` prefix. Secrets must never be included
-in extension environment variables or browser bundles.
+Copy `.env.example` to `.env` for local configuration. Runtime-exposed configuration must use the
+`WXT_PUBLIC_` prefix. Secrets must never be included in extension environment variables or browser
+bundles.
 
 ## Roadmap
 
 | Release | Scope                                                                 |
 | ------- | --------------------------------------------------------------------- |
 | Beta 1  | Local identity, friends, player detection, and Twitch sidebar UI      |
-| Beta 2  | Invitations, realtime relay, heartbeat, expiry, and reconnect         |
+| Beta 2  | Firebase invitations, encrypted presence, expiry, and reconnect       |
 | Beta 3  | End-to-end encryption, privacy controls, and cross-browser validation |
 | `1.0`   | Stable protocol, polished onboarding, packaging, and release workflow |
 
