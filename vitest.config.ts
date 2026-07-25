@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     clearMocks: true,
+    include: ['src/**/*.test.ts'],
     restoreMocks: true,
   },
 });

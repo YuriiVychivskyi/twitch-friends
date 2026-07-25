@@ -37,6 +37,8 @@ pnpm-debug.log*
 .netlify/
 .firebase/
 firebase-export/
+firebase/functions/lib/
+firebase/functions/.secret.local
 firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*

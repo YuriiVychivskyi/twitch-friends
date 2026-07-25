@@ -18,8 +18,9 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test": "vitest run src",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-    "firebase:emulators": "firebase emulators:start --project demo-twitch-friends --only auth,database,firestore",
+    "test:functions": "npm --prefix firebase/functions test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:functions",
+    "firebase:emulators": "firebase emulators:start --project demo-twitch-friends --only auth,database,firestore,functions",
     "test:rules": "firebase emulators:exec --project demo-twitch-friends --only auth,database,firestore \"vitest run firebase/rules/rules.test.ts\""
   },
   "engines": {
