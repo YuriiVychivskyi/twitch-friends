@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 
+import { getPrivacySettings, setPresenceSharingEnabled } from '@/features/privacy/privacySettings';
 import {
   isRuntimeStatus,
   RUNTIME_STATUS_REQUEST,
@@ -27,7 +28,35 @@ function healthText(item: StatusItem) {
 }
 
 export function PopupApp() {
+  const [privacyError, setPrivacyError] = useState(false);
+  const [privacyReady, setPrivacyReady] = useState(false);
+  const [sharePresence, setSharePresence] = useState(false);
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void getPrivacySettings()
+      .then((settings) => {
+        if (active) {
+          setSharePresence(settings.sharePresence);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPrivacyError(true);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setPrivacyReady(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -83,6 +112,20 @@ export function PopupApp() {
     },
   ];
 
+  const updatePresenceSharing = async (enabled: boolean) => {
+    const previousValue = sharePresence;
+
+    setPrivacyError(false);
+    setSharePresence(enabled);
+
+    try {
+      await setPresenceSharingEnabled(enabled);
+    } catch {
+      setPrivacyError(true);
+      setSharePresence(previousValue);
+    }
+  };
+
   return (
     <main className="popup">
       <header className="popup__header">
@@ -112,6 +155,34 @@ export function PopupApp() {
           </span>
         </div>
       </section>
+
+      <section className="privacy-setting" aria-labelledby="presence-sharing-label">
+        <div>
+          <h2 className="privacy-setting__title" id="presence-sharing-label">
+            Presence sharing
+          </h2>
+          <p className="privacy-setting__description">
+            Saved locally. Presence sync is not connected yet.
+          </p>
+        </div>
+
+        <input
+          className="privacy-setting__checkbox"
+          aria-label="Enable presence sharing"
+          checked={sharePresence}
+          disabled={!privacyReady}
+          type="checkbox"
+          onChange={(event) => {
+            void updatePresenceSharing(event.target.checked);
+          }}
+        />
+      </section>
+
+      {privacyError ? (
+        <p className="popup__error" role="status">
+          Could not save the privacy setting.
+        </p>
+      ) : null}
 
       <p className="popup__privacy">Viewing history is not collected or stored.</p>
     </main>
