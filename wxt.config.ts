@@ -4,15 +4,15 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: 'src',
   manifest: ({ browser, manifestVersion }) => {
-    const localFirebaseHosts = ['http://127.0.0.1/*'];
+    const firebaseHosts = ['http://127.0.0.1/*', 'https://*.cloudfunctions.net/*'];
 
     return {
       name: 'Twitch Friends',
       description: 'Share your current Twitch stream with trusted friends.',
-      permissions: manifestVersion === 2 ? ['storage', ...localFirebaseHosts] : ['storage'],
+      permissions: manifestVersion === 2 ? ['storage', ...firebaseHosts] : ['storage'],
       ...(manifestVersion === 3
         ? {
-            host_permissions: localFirebaseHosts,
+            host_permissions: firebaseHosts,
           }
         : {}),
       ...(browser === 'firefox'

@@ -6,6 +6,7 @@ import {
   removeLocalFriend,
   type LocalFriend,
 } from '@/features/friends/localFriends';
+import { lookupTwitchUser } from '@/features/friends/twitchUserLookup';
 
 export function FriendsPanel() {
   const [error, setError] = useState('');
@@ -43,7 +44,14 @@ export function FriendsPanel() {
     setError('');
 
     try {
-      await addLocalFriend(login);
+      const profile = await lookupTwitchUser(login);
+
+      if (!profile) {
+        setError('Twitch user not found.');
+        return;
+      }
+
+      await addLocalFriend(profile);
       setFriends(await getLocalFriends());
       setLogin('');
     } catch (cause) {
@@ -95,7 +103,7 @@ export function FriendsPanel() {
           {friends.map((friend) => (
             <li className="status-row" key={friend.login}>
               <div>
-                <span className="friend-list__login">{friend.login}</span>
+                <span className="friend-list__login">{friend.displayName}</span>
                 <span className="friend-list__status">Unavailable</span>
               </div>
               <button

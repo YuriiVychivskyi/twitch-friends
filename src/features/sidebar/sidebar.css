@@ -36,6 +36,62 @@
   white-space: nowrap;
 }
 
+.friends-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.friend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 5px 10px;
+}
+
+.friend__avatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #53535f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.friend__details,
+.friend__login,
+.friend__status {
+  display: block;
+}
+
+.friend__details {
+  min-width: 0;
+}
+
+.friend__login,
+.friend__status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend__login {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.friend__status {
+  color: var(--color-text-alt, #adadb8);
+  font-size: 13px;
+  line-height: 17px;
+}
+
 @container (max-width: 80px) {
   .friends-section {
     display: none;

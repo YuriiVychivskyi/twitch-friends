@@ -1,13 +1,17 @@
 import { browser } from 'wxt/browser';
 
+import { type TwitchUserProfile } from '@/features/friends/twitchUserLookup';
 import { normalizeTwitchLogin } from '@/features/presence/twitchChannel';
 
 export type LocalFriend = {
   addedAt: number;
+  avatarUrl: string;
+  displayName: string;
   login: string;
+  twitchId: string;
 };
 
-const FRIENDS_KEY = 'friends';
+export const LOCAL_FRIENDS_KEY = 'friends';
 
 export function parseLocalFriends(value: unknown): LocalFriend[] {
   if (!value || typeof value !== 'object') {
@@ -16,7 +20,7 @@ export function parseLocalFriends(value: unknown): LocalFriend[] {
 
   const stored = value as Record<string, unknown>;
 
-  if (stored.version !== 1 || !Array.isArray(stored.items)) {
+  if (![1, 2].includes(stored.version as number) || !Array.isArray(stored.items)) {
     return [];
   }
 
@@ -43,7 +47,10 @@ export function parseLocalFriends(value: unknown): LocalFriend[] {
 
     friends.push({
       addedAt: friend.addedAt,
+      avatarUrl: typeof friend.avatarUrl === 'string' ? friend.avatarUrl : '',
+      displayName: typeof friend.displayName === 'string' ? friend.displayName : login,
       login,
+      twitchId: typeof friend.twitchId === 'string' ? friend.twitchId : '',
     });
     logins.add(login);
   }
@@ -53,39 +60,45 @@ export function parseLocalFriends(value: unknown): LocalFriend[] {
 
 async function saveLocalFriends(friends: LocalFriend[]) {
   await browser.storage.local.set({
-    [FRIENDS_KEY]: {
+    [LOCAL_FRIENDS_KEY]: {
       items: friends,
-      version: 1,
+      version: 2,
     },
   });
 }
 
 export async function getLocalFriends() {
-  const stored = await browser.storage.local.get(FRIENDS_KEY);
+  const stored = await browser.storage.local.get(LOCAL_FRIENDS_KEY);
 
-  return parseLocalFriends(stored[FRIENDS_KEY]);
+  return parseLocalFriends(stored[LOCAL_FRIENDS_KEY]);
 }
 
-export async function addLocalFriend(value: string) {
-  const login = normalizeTwitchLogin(value);
+export async function addLocalFriend(profile: TwitchUserProfile) {
+  const login = normalizeTwitchLogin(profile.login);
 
   if (!login) {
-    throw new Error('Enter a valid Twitch login.');
+    throw new Error('Twitch returned an invalid login.');
   }
 
   const friends = await getLocalFriends();
-  const existingFriend = friends.find((friend) => friend.login === login);
-
-  if (existingFriend) {
-    return existingFriend;
-  }
-
   const friend: LocalFriend = {
     addedAt: Date.now(),
+    avatarUrl: profile.avatarUrl,
+    displayName: profile.displayName,
     login,
+    twitchId: profile.id,
   };
+  const existingFriendIndex = friends.findIndex((item) => item.login === login);
 
-  await saveLocalFriends([...friends, friend]);
+  if (existingFriendIndex >= 0) {
+    const existingFriend = friends[existingFriendIndex];
+
+    friend.addedAt = existingFriend?.addedAt ?? friend.addedAt;
+    friends[existingFriendIndex] = friend;
+    await saveLocalFriends(friends);
+  } else {
+    await saveLocalFriends([...friends, friend]);
+  }
 
   return friend;
 }

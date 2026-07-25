@@ -9,13 +9,14 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 ## Current state
 
 - Chrome Manifest V3 and Firefox builds
-- Friends placeholder mounted in Twitch's sidebar
+- Local friends rendered in Twitch's sidebar
 - Active Twitch channel detection across page navigation
 - Anonymous Firebase authentication
 - Local ECDH and ECDSA identity with non-extractable private keys
 - Popup privacy control with presence sharing disabled by default
 - Local friend storage with Twitch login validation
 - Popup controls for adding and removing local friends
+- Twitch user validation and profile images through a server-side function
 - Firestore and Realtime Database rules that deny access by default
 - Local Firebase Emulator Suite workflow
 
@@ -75,11 +76,12 @@ See [docs/security-architecture.md](docs/security-architecture.md) for the curre
 
 ## Permissions
 
-| Permission                | Reason                                                 |
-| ------------------------- | ------------------------------------------------------ |
-| `storage`                 | Store extension-owned settings                         |
-| `https://www.twitch.tv/*` | Add the friends section on Twitch                      |
-| `http://127.0.0.1/*`      | Connect to Firebase emulators during local development |
+| Permission                       | Reason                                                 |
+| -------------------------------- | ------------------------------------------------------ |
+| `storage`                        | Store extension-owned settings                         |
+| `https://www.twitch.tv/*`        | Add the friends section on Twitch                      |
+| `http://127.0.0.1/*`             | Connect to Firebase emulators during local development |
+| `https://*.cloudfunctions.net/*` | Call the Twitch lookup backend                         |
 
 ## Environment
 

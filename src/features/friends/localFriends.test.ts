@@ -20,6 +20,15 @@ import {
   removeLocalFriend,
 } from '@/features/friends/localFriends';
 
+function twitchProfile(login: string) {
+  return {
+    avatarUrl: `https://static-cdn.jtvnw.net/${login}.png`,
+    displayName: login,
+    id: `${login}-id`,
+    login,
+  };
+}
+
 describe('local friends', () => {
   beforeEach(() => {
     storage.get.mockReset();
@@ -37,12 +46,20 @@ describe('local friends', () => {
         ],
         version: 1,
       }),
-    ).toEqual([{ addedAt: 10, login: 'first_friend' }]);
+    ).toEqual([
+      {
+        addedAt: 10,
+        avatarUrl: '',
+        displayName: 'first_friend',
+        login: 'first_friend',
+        twitchId: '',
+      },
+    ]);
   });
 
   it('returns an empty list for unsupported storage data', () => {
     expect(parseLocalFriends(undefined)).toEqual([]);
-    expect(parseLocalFriends({ items: [], version: 2 })).toEqual([]);
+    expect(parseLocalFriends({ items: [], version: 3 })).toEqual([]);
   });
 
   it('adds a normalized Twitch login', async () => {
@@ -50,19 +67,30 @@ describe('local friends', () => {
     storage.get.mockResolvedValue({ friends: { items: [], version: 1 } });
     storage.set.mockResolvedValue(undefined);
 
-    await expect(addLocalFriend(' New_Friend ')).resolves.toEqual({
+    await expect(addLocalFriend(twitchProfile('new_friend'))).resolves.toEqual({
       addedAt: 100,
+      avatarUrl: 'https://static-cdn.jtvnw.net/new_friend.png',
+      displayName: 'new_friend',
       login: 'new_friend',
+      twitchId: 'new_friend-id',
     });
     expect(storage.set).toHaveBeenCalledWith({
       friends: {
-        items: [{ addedAt: 100, login: 'new_friend' }],
-        version: 1,
+        items: [
+          {
+            addedAt: 100,
+            avatarUrl: 'https://static-cdn.jtvnw.net/new_friend.png',
+            displayName: 'new_friend',
+            login: 'new_friend',
+            twitchId: 'new_friend-id',
+          },
+        ],
+        version: 2,
       },
     });
   });
 
-  it('does not write an existing friend again', async () => {
+  it('updates Twitch data for an existing friend', async () => {
     storage.get.mockResolvedValue({
       friends: {
         items: [{ addedAt: 50, login: 'existing_friend' }],
@@ -70,11 +98,27 @@ describe('local friends', () => {
       },
     });
 
-    await expect(addLocalFriend('Existing_Friend')).resolves.toEqual({
+    await expect(addLocalFriend(twitchProfile('existing_friend'))).resolves.toEqual({
       addedAt: 50,
+      avatarUrl: 'https://static-cdn.jtvnw.net/existing_friend.png',
+      displayName: 'existing_friend',
       login: 'existing_friend',
+      twitchId: 'existing_friend-id',
     });
-    expect(storage.set).not.toHaveBeenCalled();
+    expect(storage.set).toHaveBeenCalledWith({
+      friends: {
+        items: [
+          {
+            addedAt: 50,
+            avatarUrl: 'https://static-cdn.jtvnw.net/existing_friend.png',
+            displayName: 'existing_friend',
+            login: 'existing_friend',
+            twitchId: 'existing_friend-id',
+          },
+        ],
+        version: 2,
+      },
+    });
   });
 
   it('removes a saved friend', async () => {
@@ -92,8 +136,16 @@ describe('local friends', () => {
     await expect(removeLocalFriend('first_friend')).resolves.toBe(true);
     expect(storage.set).toHaveBeenCalledWith({
       friends: {
-        items: [{ addedAt: 60, login: 'second_friend' }],
-        version: 1,
+        items: [
+          {
+            addedAt: 60,
+            avatarUrl: '',
+            displayName: 'second_friend',
+            login: 'second_friend',
+            twitchId: '',
+          },
+        ],
+        version: 2,
       },
     });
   });
@@ -106,6 +158,14 @@ describe('local friends', () => {
       },
     });
 
-    await expect(getLocalFriends()).resolves.toEqual([{ addedAt: 50, login: 'saved_friend' }]);
+    await expect(getLocalFriends()).resolves.toEqual([
+      {
+        addedAt: 50,
+        avatarUrl: '',
+        displayName: 'saved_friend',
+        login: 'saved_friend',
+        twitchId: '',
+      },
+    ]);
   });
 });
