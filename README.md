@@ -1,27 +1,33 @@
 # Twitch Friends
 
-A browser extension that adds a small friends section to the Twitch sidebar. The goal is to let
-trusted friends share which live channel they are watching without collecting viewing history.
+A browser extension that adds a small friends section to the Twitch sidebar. Trusted friends can
+share which live channel they are watching without collecting viewing history.
 
-The project is currently being prepared for a closed beta. Friend connections, encrypted presence,
-the Twitch sidebar integration, and the local Firebase development workflow are working.
+The project is being prepared for a closed beta. Friend requests, encrypted presence, Twitch OAuth
+ownership verification, account cleanup, and the Twitch sidebar integration are working.
 
 ## Current state
 
 - Chrome Manifest V3 and Firefox builds
-- Local friends rendered in Twitch's sidebar
-- Active Twitch channel detection across page navigation
-- Anonymous Firebase authentication
-- Local ECDH identity with a non-extractable private key
-- Automatic presence sharing between accepted friends
-- Local friend storage with Twitch login validation
-- Popup controls for sending, accepting, declining, and removing friend connections
-- Twitch ownership validation and profile images through the server
-- Twitch OAuth ownership verification for the user's own profile
-- Mutual friend requests with accept, decline, cancel, and remove actions
-- Short-lived encrypted presence shared only between accepted friends
-- Firestore and Realtime Database rules that deny access by default
-- Local Firebase Emulator Suite workflow
+- Twitch sidebar integration and active-channel detection across tabs
+- Twitch OAuth ownership verification
+- Friend requests with accept, decline, cancel, and remove actions
+- End-to-end encrypted, short-lived presence between accepted friends
+- Non-extractable local ECDH private keys
+- Twitch profiles, friendship metadata, and public keys stored in Cloudflare D1
+- Anonymous Firebase Authentication and Realtime Database presence delivery
+- Popup actions for disconnecting Twitch and deleting account data
+- Exact extension-origin CORS, Firebase token verification, and bounded API rate limits
+- Local Firebase Emulator Suite and Cloudflare Worker development workflow
+
+## Architecture
+
+The extension never receives a Twitch client secret, authorization code, access token, or refresh
+token. Twitch OAuth and Helix requests run in a Cloudflare Worker. D1 stores account and friendship
+metadata. Realtime Database carries only recipient-specific encrypted presence with a short expiry.
+The matching private key remains in extension-owned IndexedDB.
+
+See [docs/security-architecture.md](docs/security-architecture.md) for the full security model.
 
 ## Development
 
@@ -31,23 +37,16 @@ Requirements:
 - npm 11 or newer
 - Java 21 or newer for Firebase emulators
 
-Install dependencies and start the local services:
+Install dependencies, copy `.env.example` to `.env`, and copy `.dev.vars.example` to `.dev.vars`.
+Add the local Twitch client credentials only to `.dev.vars`; both local files are ignored by Git.
+
+Start the local services in separate terminals:
 
 ```bash
 npm install
 npm run firebase:emulators
-```
-
-In a second terminal, start the extension:
-
-```bash
+npm run worker:dev
 npm run dev
-```
-
-For a static Chrome build:
-
-```bash
-npm run build
 ```
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select
@@ -55,58 +54,66 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 
 ## Commands
 
-| Command                      | Purpose                                       |
-| ---------------------------- | --------------------------------------------- |
-| `npm run dev`                | Start Chrome development mode                 |
-| `npm run dev:firefox`        | Start Firefox development mode                |
-| `npm run check`              | Run formatting, linting, types, and tests     |
-| `npm run build`              | Build the Chrome extension                    |
-| `npm run build:firefox`      | Build the Firefox extension                   |
-| `npm run firebase:emulators` | Start Auth, Firestore, and Database emulators |
-| `npm run test:rules`         | Test Firebase security rules                  |
+| Command                         | Purpose                                        |
+| ------------------------------- | ---------------------------------------------- |
+| `npm run dev`                   | Start Chrome development mode                  |
+| `npm run dev:firefox`           | Start Firefox development mode                 |
+| `npm run check`                 | Run formatting, linting, types, and unit tests |
+| `npm run test:rules`            | Test Firebase security rules                   |
+| `npm run worker:build`          | Validate the production Worker bundle          |
+| `npm run worker:dev`            | Start the local Worker and D1                  |
+| `npm run worker:migrate:local`  | Apply local D1 migrations                      |
+| `npm run worker:migrate:remote` | Apply production D1 migrations                 |
+| `npm run build`                 | Build the Chrome extension                     |
+| `npm run build:firefox`         | Build the Firefox extension                    |
+| `npm run firebase:emulators`    | Start Auth, Firestore, and Database emulators  |
 
 ## Privacy
 
-- The extension does not read Twitch cookies or credentials.
+- The extension does not read Twitch cookies, credentials, or page storage.
 - Viewing history is not collected.
+- Twitch tokens are revoked after ownership verification and are never persisted.
 - Private identity keys are generated and stored locally.
-- Firebase configuration contains public project identifiers, not server secrets.
-- Stream presence is encrypted separately for every accepted friend.
-- Presence records expire after one minute and are not stored as viewing history.
-
-See [docs/security-architecture.md](docs/security-architecture.md) for the current security model.
+- Presence is encrypted separately for every accepted friend.
+- Presence records expire after one minute and are not retained as history.
+- **Disconnect Twitch** removes the profile, friendships, requests, public key, and presence.
+- **Delete my data** also deletes the Firebase identity and local extension data.
 
 ## Permissions
 
-| Permission                                                      | Reason                                                 |
-| --------------------------------------------------------------- | ------------------------------------------------------ |
-| `storage`                                                       | Store extension-owned settings                         |
-| `https://www.twitch.tv/*`                                       | Add the friends section on Twitch                      |
-| `http://127.0.0.1/*`                                            | Connect to Firebase emulators during local development |
-| `https://europe-west1-demo-twitch-friends.cloudfunctions.net/*` | Call the extension backend                             |
+| Permission                                                | Reason                            |
+| --------------------------------------------------------- | --------------------------------- |
+| `storage`                                                 | Store extension-owned settings    |
+| `https://www.twitch.tv/*`                                 | Add the friends section on Twitch |
+| `http://127.0.0.1/*` (development builds only)            | Reach local emulators and Worker  |
+| `https://twitch-friends-api.yuravychivskii.workers.dev/*` | Reach the production API          |
 
-## Environment
+## Production
 
-Copy `.env.example` to `.env`. Values prefixed with `WXT_PUBLIC_` are included in the extension
-bundle and must never contain secrets.
+The Worker uses encrypted Cloudflare secrets named `TWITCH_CLIENT_ID` and
+`TWITCH_CLIENT_SECRET`. Never place either value in a `WXT_PUBLIC_` variable, extension bundle,
+Wrangler config, README, issue, or commit.
 
-Local development uses this OAuth callback:
+The exact production Twitch OAuth redirect URL is:
 
 ```text
-http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback
+https://twitch-friends-api.yuravychivskii.workers.dev/oauth/callback
 ```
 
-Add it to the Twitch app's OAuth Redirect URLs and to `oauthRedirectUris` in
-`firebase/functions/.secret.local`. Production builds set
-`WXT_PUBLIC_TWITCH_OAUTH_CALLBACK_URL` to the deployed HTTPS function URL.
+Apply migrations and deploy with:
 
-The local secret uses this shape:
-
-```json
-TWITCH_API_CONFIG={"clientId":"...","clientSecret":"...","oauthRedirectUris":["http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback"]}
+```bash
+npm run worker:migrate:remote
+npm run worker:deploy
 ```
+
+Firebase production uses Anonymous Authentication and Realtime Database only. Firestore remains
+fail-closed. Firebase Functions and a Firebase billing plan are not required.
 
 ## Closed beta
+
+The closed beta targets Chrome. The Firefox build remains compile-tested, but its per-install random
+moz-extension:// origin is not included in the production CORS allowlist yet.
 
 Beta access will be provided to approved testers. Feedback and bug reports are welcome through the
 contact options below.

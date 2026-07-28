@@ -2,12 +2,12 @@
 
 ## Objectives
 
-- Prevent Firebase and unrelated extensions from receiving plaintext friend-presence data.
-- Keep private identity material on the user's device.
-- Avoid retaining viewing history.
+- Keep Twitch and backend credentials out of the extension bundle.
+- Keep private cryptographic identity material on the user's device.
+- Avoid collecting or retaining viewing history.
 - Restrict every remote read and write to the smallest required path.
-- Reject access by default.
-- Keep production credentials and administrative capabilities out of the extension bundle.
+- Reject access by default and bound unauthenticated and authenticated work.
+- Support complete server and local data cleanup.
 
 ## Trust boundaries
 
@@ -16,97 +16,121 @@
 | Twitch page                | Untrusted                                     |
 | Content script             | Restricted presentation and stream detection  |
 | Extension background       | Trusted network and cryptography boundary     |
-| Extension IndexedDB        | Trusted local key storage                     |
-| Extension local storage    | Trusted local preferences and friend metadata |
-| Firebase client services   | Untrusted for plaintext presence              |
-| Firebase Admin environment | Administrative and never bundled              |
-| Twitch OAuth callback      | Trusted one-time identity verification        |
+| Extension IndexedDB        | Private non-extractable key storage           |
+| Extension local storage    | Local preferences and derived display state   |
+| Firebase Auth              | Installation identity provider                |
+| Firebase Realtime Database | Untrusted for plaintext presence              |
+| Cloudflare Worker          | Trusted API and OAuth boundary                |
+| Cloudflare D1              | Server-only account and friendship metadata   |
+| Twitch OAuth and Helix     | Account ownership and public profile provider |
 
 ## Data placement
 
-| Data                       | Location                | Remote representation          |
-| -------------------------- | ----------------------- | ------------------------------ |
-| Private cryptographic keys | Extension IndexedDB     | Never uploaded                 |
-| Sidebar friend cache       | Extension local storage | Accepted public Twitch profile |
-| Public identity keys       | Cloud Firestore         | Public key material only       |
-| Mutual friend grants       | Cloud Firestore         | Member identifiers and state   |
-| Friend requests            | Cloud Firestore         | Member identifiers and state   |
-| Current viewing presence   | Realtime Database       | End-to-end encrypted payload   |
-| Viewing history            | Nowhere                 | Never created                  |
+| Data                        | Location                         | Retention                       |
+| --------------------------- | -------------------------------- | ------------------------------- |
+| Private ECDH key            | Extension IndexedDB              | Until Delete my data            |
+| Local settings and UI cache | Extension local storage          | Until disconnect or deletion    |
+| Firebase installation UID   | Firebase Authentication          | Until Delete my data            |
+| Twitch profile mapping      | Cloudflare D1                    | Until disconnect or deletion    |
+| Friend requests/friendships | Cloudflare D1                    | Until removal or deletion       |
+| Public ECDH key             | Cloudflare D1                    | Until disconnect or deletion    |
+| OAuth state                 | Cloudflare D1, SHA-256 hash only | Single use, ten-minute expiry   |
+| Rate-limit counters         | Cloudflare D1                    | Bounded keys and daily counters |
+| Current viewing presence    | Realtime Database, encrypted     | Approximately one minute        |
+| Viewing history             | Nowhere                          | Never created                   |
 
-## Identity
+## Identity and authentication
 
-Firebase Anonymous Authentication provides an installation-scoped UID without Twitch, email, or
-password registration. Reinstalling the extension or clearing its storage creates a new identity
-and requires pairing again.
+Firebase Anonymous Authentication provides an installation-scoped UID without email or password
+registration. The Worker accepts only Firebase ID tokens signed by Google for the exact production
+project, with the anonymous sign-in provider. Signature keys are cached according to Google's
+cache headers and refreshed once when a new key ID appears.
 
-Twitch account ownership is verified through a server-side authorization-code callback. The
-extension receives neither the authorization code nor Twitch tokens. OAuth state values are random,
-single-use, short-lived, stored only as SHA-256 hashes, and bound to the initiating Firebase UID.
-User and refresh tokens are revoked after verification and are never persisted.
+A reinstall creates a new Firebase UID. Reconnecting the same Twitch account updates the D1 mapping
+to the new UID while retaining Twitch-ID-based relationships. The client republishes its public key
+and synchronizes its Realtime Database friendship edge.
 
-The extension generates a non-extractable Web Crypto private key and stores it in extension-owned
-IndexedDB. Only the matching public key may leave the device.
+The emulator-only unsigned-token path requires both `ALLOW_INSECURE_EMULATOR_AUTH=true` and a
+`demo-` Firebase project ID. That variable is absent from production configuration.
+
+## Twitch OAuth
+
+The Worker creates a cryptographically random 256-bit state value. Only its SHA-256 hash is stored,
+bound to the initiating Firebase UID, single-use, and valid for ten minutes. The callback URL is an
+exact HTTPS value configured in Wrangler and Twitch Developer Console.
+
+Authorization codes are exchanged only in the Worker. The returned access token is validated
+against Twitch, including the expected client ID and user ID. Twitch profile data is then fetched
+through Helix. Access and refresh tokens are revoked in a `finally` block and are never written to
+D1, logs, extension storage, or responses.
+
+## Friend metadata
+
+D1 is bound directly to the Worker and is not accessible from the extension. API calls require a
+valid Firebase bearer token. Users can read only their own profile, requests, and friendship view;
+mutations are derived from the authenticated UID rather than a client-supplied owner ID.
+
+Database uniqueness constraints prevent one Twitch account, login, or Firebase UID from owning
+multiple mappings. Foreign keys cascade profile deletion through requests, friendships, and public
+keys.
 
 ## Presence
 
-The background context owns the Firebase connection. Twitch content scripts send only the minimal
-current-channel state to the background context. Decrypted friend presence is reduced to the
-minimum display model before it reaches the sidebar UI.
+The background generates a non-extractable P-256 ECDH private key. Only the public key is uploaded.
+The current channel is encrypted independently for every accepted friend before it reaches Firebase.
+The ciphertext is authenticated, versioned, schema-limited, and expires locally and in database
+rules.
 
-Presence records contain ciphertext, an initialization vector, a protocol version, and expiry
-metadata. They do not contain a plaintext Twitch channel, display name, URL, title, category, or
-viewing history.
+Realtime Database rules require reciprocal friendship edges before a sender can write a recipient
+mailbox. A recipient may read and clear only their own mailbox. A sender may delete only their own
+outbound records. All other paths deny reads and writes.
 
-Mutual friend acceptance authorizes presence sharing. Removing a friend revokes database access and
-deletes both directions of the active presence mailbox.
+The client refreshes active presence every 30 seconds, applies a three-second publish debounce, and
+uses `onDisconnect` cleanup. It never persists plaintext viewing history.
 
-Realtime Database handles connection state and removes presence using `onDisconnect`. Clients also
-reject expired payloads locally and remove expired decrypted display state from extension storage.
+## API controls
 
-## Remote access
-
-- Firebase Security Rules deny access by default.
-- Authentication alone never grants collection-wide access.
-- A user may write only to their own identity or authorized recipient mailbox.
-- A user may read only their own records and explicitly granted friend records.
-- Payload schemas, field counts, string lengths, and timestamps are validated in rules.
-- Administrative credentials are restricted to trusted backend environments.
-- Firebase API keys identify the project and are not treated as authorization.
-- Callable operations are limited per authenticated installation and client address.
-- Callable origins are restricted to the Chrome extension and Firefox extension origins.
-- Cloud Functions use bounded instance counts.
-- Callable functions enforce hourly installation and address limits.
-- A global daily callable budget disables new function work after 5,000 accepted requests.
-- Realtime Database presence access requires a one-hour backend lease and closes when the callable
-  budget is exhausted.
+- CORS uses the exact production Chrome extension origin.
+- CORS is defense in depth; authentication and authorization do not depend on Origin alone.
+- Request bodies are streamed and rejected above 4 KiB.
+- Network calls to Twitch have ten-second timeouts.
+- OAuth starts are limited per installation and address, with an additional ten-second cooldown.
+- API operations have separate hourly installation and address limits.
+- Accepted authenticated API work has a 5,000-request daily service budget.
+- Public OAuth callbacks have an independent per-address limit and cannot consume that budget.
+- Rate-limit keys reset in place instead of growing once per hour.
+- A daily Worker cron deletes expired rate-limit/OAuth rows and old daily counters.
+- Cloudflare Workers and D1 are deployed on the free plan; Firebase Functions are not used.
+- API and OAuth responses disable caching and never expose internal exception details.
 
 ## Browser isolation
 
-- Firebase and cryptographic operations run only in the extension background context.
-- The Twitch page never receives Firebase Auth tokens, public identity records, or private keys.
-- The content script never reads Twitch cookies, local storage, authentication tokens, or private
-  APIs.
-- Remote scripts and dynamic code execution are prohibited.
-- Analytics, advertising SDKs, session replay, and remote console logging are prohibited.
-- Production logs exclude identifiers, channels, ciphertext, tokens, and key material.
+- Firebase, Worker API calls, and cryptography run in the extension background context.
+- The Twitch page never receives Firebase tokens, public keys, ciphertext, or private keys.
+- The content script never reads cookies, Twitch local storage, authentication tokens, or private
+  Twitch APIs.
+- Remote scripts, dynamic code execution, analytics, advertising SDKs, and session replay are not
+  included.
+- Extension pages use `script-src 'self'; object-src 'self'` Content Security Policy.
 
-## Firebase projects
+## Data lifecycle
 
-- Development uses the `demo-twitch-friends` Emulator Suite project.
-- Production uses a dedicated Firebase project with no unrelated applications.
-- Firestore uses a European location.
-- Realtime Database uses `europe-west1`.
-- Development and production never share databases or credentials.
+**Disconnect Twitch** deletes the D1 profile mapping, friendships, requests, public key, OAuth state,
+and both directions of active Realtime Database presence. Local UI storage is cleared. The anonymous
+Firebase UID and private key remain available for a later reconnect.
+
+**Delete my data** performs the same server cleanup, deletes the Firebase Authentication UID, clears
+extension storage, and deletes the identity IndexedDB database. A local setup-required flag prevents
+a replacement anonymous account from being created until the user explicitly connects again.
 
 ## Release gates
 
-- Automated rules tests cover allowed and denied operations.
-- Every rule change includes a negative test.
-- Emulator tests pass before any rules deployment.
-- App Check debug tokens are never shipped. A public-scale release requires custom extension
-  attestation; beta access uses restricted origins, authentication, rate limits, and bounded
-  function instances.
-- Quotas, API restrictions, billing alerts, and usage monitoring are configured before beta access.
-- A privacy notice documents metadata visible to Firebase and the absence of viewing-history
-  retention.
+- Formatting, lint, TypeScript, unit tests, Worker tests, and Firebase Rules tests must pass.
+- Chrome and Firefox production builds must complete.
+- The Worker dry-run bundle must complete without configuration warnings.
+- Production dependencies must have no known high or critical vulnerabilities.
+- Twitch secrets must exist only in Cloudflare encrypted secrets and ignored local development files.
+- Production Realtime Database rules must match the tested repository version.
+- The Twitch Developer Console must contain only exact required OAuth redirect URLs.
+- The extension package must be inspected to confirm it contains no secrets or source maps with
+  sensitive local data.
