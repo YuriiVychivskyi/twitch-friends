@@ -694,6 +694,11 @@ export const getMyTwitchProfile = onCall(
       throw new HttpsError('data-loss', 'Stored Twitch profile is invalid.');
     }
 
-    return profile;
+    return {
+      avatarUrl: profile.avatarUrl,
+      displayName: profile.displayName,
+      id: profile.id,
+      login: profile.login,
+    };
   },
 );
