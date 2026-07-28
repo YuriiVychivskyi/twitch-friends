@@ -2,7 +2,7 @@
 
 ## Objectives
 
-- Prevent Twitch, Firebase, and unrelated extensions from receiving plaintext viewing activity.
+- Prevent Firebase and unrelated extensions from receiving plaintext friend-presence data.
 - Keep private identity material on the user's device.
 - Avoid retaining viewing history.
 - Restrict every remote read and write to the smallest required path.
@@ -24,16 +24,16 @@
 
 ## Data placement
 
-| Data                       | Location                | Remote representation         |
-| -------------------------- | ----------------------- | ----------------------------- |
-| Private cryptographic keys | Extension IndexedDB     | Never uploaded                |
-| Local privacy settings     | Extension local storage | Never uploaded                |
-| Local friend labels        | Extension local storage | Never uploaded                |
-| Public identity keys       | Cloud Firestore         | Public key material only      |
-| Mutual friend grants       | Cloud Firestore         | Member identifiers and state  |
-| Invitations                | Cloud Firestore         | Random identifiers and expiry |
-| Current viewing presence   | Realtime Database       | End-to-end encrypted payload  |
-| Viewing history            | Nowhere                 | Never created                 |
+| Data                       | Location                | Remote representation          |
+| -------------------------- | ----------------------- | ------------------------------ |
+| Private cryptographic keys | Extension IndexedDB     | Never uploaded                 |
+| Local privacy settings     | Extension local storage | Never uploaded                 |
+| Sidebar friend cache       | Extension local storage | Accepted public Twitch profile |
+| Public identity keys       | Cloud Firestore         | Public key material only       |
+| Mutual friend grants       | Cloud Firestore         | Member identifiers and state   |
+| Friend requests            | Cloud Firestore         | Member identifiers and state   |
+| Current viewing presence   | Realtime Database       | End-to-end encrypted payload   |
+| Viewing history            | Nowhere                 | Never created                  |
 
 ## Identity
 
@@ -46,8 +46,8 @@ extension receives neither the authorization code nor Twitch tokens. OAuth state
 single-use, short-lived, stored only as SHA-256 hashes, and bound to the initiating Firebase UID.
 User and refresh tokens are revoked after verification and are never persisted.
 
-The extension generates non-extractable Web Crypto keys and stores them in extension-owned
-IndexedDB. Only public key material may leave the device.
+The extension generates a non-extractable Web Crypto private key and stores it in extension-owned
+IndexedDB. Only the matching public key may leave the device.
 
 ## Presence
 
@@ -60,7 +60,7 @@ metadata. They do not contain a plaintext Twitch channel, display name, URL, tit
 viewing history.
 
 Realtime Database handles connection state and removes presence using `onDisconnect`. Clients also
-reject expired payloads locally.
+reject expired payloads locally and remove expired decrypted display state from extension storage.
 
 ## Remote access
 
@@ -71,7 +71,13 @@ reject expired payloads locally.
 - Payload schemas, field counts, string lengths, and timestamps are validated in rules.
 - Administrative credentials are restricted to trusted backend environments.
 - Firebase API keys identify the project and are not treated as authorization.
-- Twitch profile lookups are limited per authenticated installation.
+- Callable operations are limited per authenticated installation and client address.
+- Callable origins are restricted to the Chrome extension and Firefox extension origins.
+- Cloud Functions use bounded instance counts.
+- Callable functions enforce hourly installation and address limits.
+- A global daily callable budget disables new function work after 5,000 accepted requests.
+- Realtime Database presence access requires a one-hour backend lease and closes when the callable
+  budget is exhausted.
 
 ## Browser isolation
 
@@ -96,7 +102,9 @@ reject expired payloads locally.
 - Automated rules tests cover allowed and denied operations.
 - Every rule change includes a negative test.
 - Emulator tests pass before any rules deployment.
-- Production App Check enforcement is evaluated separately and never replaces Security Rules.
+- App Check debug tokens are never shipped. A public-scale release requires custom extension
+  attestation; beta access uses restricted origins, authentication, rate limits, and bounded
+  function instances.
 - Quotas, API restrictions, billing alerts, and usage monitoring are configured before beta access.
 - A privacy notice documents metadata visible to Firebase and the absence of viewing-history
   retention.

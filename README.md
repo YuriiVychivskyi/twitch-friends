@@ -12,16 +12,16 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 - Local friends rendered in Twitch's sidebar
 - Active Twitch channel detection across page navigation
 - Anonymous Firebase authentication
-- Local ECDH and ECDSA identity with non-extractable private keys
+- Local ECDH identity with a non-extractable private key
 - Popup privacy control with presence sharing disabled by default
 - Local friend storage with Twitch login validation
-- Popup controls for adding and removing local friends
-- Twitch user validation and profile images through a server-side function
+- Popup controls for sending, accepting, declining, and removing friend connections
+- Twitch ownership validation and profile images through the server
 - Twitch OAuth ownership verification for the user's own profile
+- Mutual friend requests with accept, decline, cancel, and remove actions
+- Short-lived encrypted presence shared only between accepted friends
 - Firestore and Realtime Database rules that deny access by default
 - Local Firebase Emulator Suite workflow
-
-Friend invitations and live presence sharing are not implemented yet.
 
 ## Development
 
@@ -71,7 +71,8 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 - Viewing history is not collected.
 - Private identity keys are generated and stored locally.
 - Firebase configuration contains public project identifiers, not server secrets.
-- Database access stays closed until a tested data model is added.
+- Stream presence is encrypted separately for every accepted friend.
+- Presence records expire after one minute and are not stored as viewing history.
 
 See [docs/security-architecture.md](docs/security-architecture.md) for the current security model.
 
@@ -82,7 +83,7 @@ See [docs/security-architecture.md](docs/security-architecture.md) for the curre
 | `storage`                                                       | Store extension-owned settings                         |
 | `https://www.twitch.tv/*`                                       | Add the friends section on Twitch                      |
 | `http://127.0.0.1/*`                                            | Connect to Firebase emulators during local development |
-| `https://europe-west1-demo-twitch-friends.cloudfunctions.net/*` | Call the Twitch backend                                |
+| `https://europe-west1-demo-twitch-friends.cloudfunctions.net/*` | Call the extension backend                             |
 
 ## Environment
 
@@ -104,11 +105,5 @@ The local secret uses this shape:
 ```json
 TWITCH_API_CONFIG={"clientId":"...","clientSecret":"...","oauthRedirectUris":["http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback"]}
 ```
-
-## Next steps
-
-- Design mutual friend invitations
-- Publish short-lived encrypted presence
-- Add presence expiry and reconnect handling
 
 Twitch Friends is an independent project and is not affiliated with Twitch Interactive, Inc.
