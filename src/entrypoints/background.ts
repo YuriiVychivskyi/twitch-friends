@@ -23,10 +23,37 @@ let activeChannel: TwitchChannel | null = null;
 let activeTabId: number | null = null;
 const tabChannels = new Map<number, TwitchChannel | null>();
 
-function selectActiveTab(tabId: number | null) {
+function selectChannel(tabId: number, channel: TwitchChannel) {
+  const unchanged =
+    activeTabId === tabId &&
+    activeChannel?.login === channel.login &&
+    activeChannel.url === channel.url;
+
   activeTabId = tabId;
-  activeChannel = tabId === null ? null : (tabChannels.get(tabId) ?? null);
+  activeChannel = channel;
+  tabChannels.delete(tabId);
+  tabChannels.set(tabId, channel);
+
+  if (unchanged) {
+    return;
+  }
+
   updatePresenceChannel(activeChannel);
+}
+
+function selectFallbackChannel() {
+  const fallback = [...tabChannels.entries()]
+    .reverse()
+    .find((entry): entry is [number, TwitchChannel] => entry[1] !== null);
+
+  if (fallback) {
+    selectChannel(...fallback);
+    return;
+  }
+
+  activeTabId = null;
+  activeChannel = null;
+  updatePresenceChannel(null);
 }
 
 async function initializeBackground() {
@@ -86,10 +113,14 @@ export default defineBackground(() => {
       typeof sender.tab?.id === 'number' &&
       sender.url?.startsWith('https://www.twitch.tv/')
     ) {
-      tabChannels.set(sender.tab.id, message.channel);
+      const tabId = sender.tab.id;
 
-      if (sender.tab.active || activeTabId === sender.tab.id) {
-        selectActiveTab(sender.tab.id);
+      tabChannels.set(tabId, message.channel);
+
+      if (message.channel && (sender.tab.active || activeTabId === tabId || !activeChannel)) {
+        selectChannel(tabId, message.channel);
+      } else if (!message.channel && activeTabId === tabId) {
+        selectFallbackChannel();
       }
     } else if (isActiveChannelRequest(message)) {
       sendResponse(activeChannel);
@@ -107,32 +138,19 @@ export default defineBackground(() => {
   });
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
-    selectActiveTab(tabId);
+    const channel = tabChannels.get(tabId);
+
+    if (channel) {
+      selectChannel(tabId, channel);
+    }
   });
 
   browser.tabs.onRemoved.addListener((tabId) => {
     tabChannels.delete(tabId);
 
     if (activeTabId === tabId) {
-      selectActiveTab(null);
+      selectFallbackChannel();
     }
-  });
-
-  browser.windows.onFocusChanged.addListener((windowId) => {
-    if (windowId === browser.windows.WINDOW_ID_NONE) {
-      selectActiveTab(null);
-      return;
-    }
-
-    void browser.tabs
-      .query({
-        active: true,
-        windowId,
-      })
-      .then(([tab]) => {
-        selectActiveTab(typeof tab?.id === 'number' ? tab.id : null);
-      })
-      .catch(() => undefined);
   });
 
   void initializeBackground();

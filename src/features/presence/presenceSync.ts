@@ -26,6 +26,7 @@ let activeChannel: TwitchChannel | null = null;
 let friends: PresenceFriend[] = [];
 let identity: LocalIdentity | null = null;
 let presenceExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+let presencePublishTimer: ReturnType<typeof setTimeout> | null = null;
 let publishedRecipients = new Set<string>();
 let presenceRevision = 0;
 let publishQueue = Promise.resolve();
@@ -33,6 +34,7 @@ let unsubscribePresence: Unsubscribe | null = null;
 let uid = '';
 
 const presencePublishInterval = 30_000;
+const presencePublishDelay = 3_000;
 const presenceServiceRefreshInterval = 45 * 60_000;
 
 function parsePublicKey(value: unknown): PublicIdentityKey | null {
@@ -326,7 +328,15 @@ export async function startPresenceSync(channel: TwitchChannel | null) {
 
 export function updatePresenceChannel(channel: TwitchChannel | null) {
   activeChannel = channel;
-  void queuePresencePublish().catch(() => undefined);
+
+  if (presencePublishTimer !== null) {
+    clearTimeout(presencePublishTimer);
+  }
+
+  presencePublishTimer = setTimeout(() => {
+    presencePublishTimer = null;
+    void queuePresencePublish().catch(() => undefined);
+  }, presencePublishDelay);
 }
 
 export function refreshPresenceFriends() {

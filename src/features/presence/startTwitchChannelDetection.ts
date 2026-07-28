@@ -20,22 +20,17 @@ export function startTwitchChannelDetection() {
     }
   };
 
+  const announceChannel = () => {
+    previousUrl = window.location.href;
+    void sendChannelUpdate(parseTwitchChannel(previousUrl));
+  };
+
   const updateChannel = () => {
-    if (document.visibilityState !== 'visible') {
-      if (previousUrl !== null) {
-        previousUrl = null;
-        void sendChannelUpdate(null);
-      }
-
-      return;
-    }
-
     if (window.location.href === previousUrl) {
       return;
     }
 
-    previousUrl = window.location.href;
-    void sendChannelUpdate(parseTwitchChannel(previousUrl));
+    announceChannel();
   };
 
   const observer = new MutationObserver(updateChannel);
@@ -46,14 +41,15 @@ export function startTwitchChannelDetection() {
   });
 
   window.addEventListener('popstate', updateChannel);
-  window.addEventListener('focus', updateChannel);
-  document.addEventListener('visibilitychange', updateChannel);
-  updateChannel();
+  window.addEventListener('focus', announceChannel);
+  const announcementInterval = window.setInterval(announceChannel, 10_000);
+
+  announceChannel();
 
   return () => {
     observer.disconnect();
     window.removeEventListener('popstate', updateChannel);
-    window.removeEventListener('focus', updateChannel);
-    document.removeEventListener('visibilitychange', updateChannel);
+    window.removeEventListener('focus', announceChannel);
+    window.clearInterval(announcementInterval);
   };
 }
