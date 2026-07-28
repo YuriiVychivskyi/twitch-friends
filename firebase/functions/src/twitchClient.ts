@@ -10,6 +10,12 @@ type TwitchCredentials = {
   clientSecret: string;
 };
 
+export type TwitchTokenIdentity = {
+  clientId: string;
+  login: string;
+  userId: string;
+};
+
 type Fetcher = typeof fetch;
 
 export class TwitchClient {
@@ -57,6 +63,92 @@ export class TwitchClient {
     this.accessTokenExpiresAt = Date.now() + Math.max(0, token.expires_in - 60) * 1_000;
 
     return this.accessToken;
+  }
+
+  async exchangeAuthorizationCode(code: string, redirectUri: string) {
+    const body = new URLSearchParams({
+      client_id: this.credentials.clientId,
+      client_secret: this.credentials.clientSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    });
+    const response = await this.fetcher('https://id.twitch.tv/oauth2/token', {
+      body,
+      method: 'POST',
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Twitch authorization failed with status ${response.status}.`);
+    }
+
+    const value: unknown = await response.json();
+
+    if (!value || typeof value !== 'object') {
+      throw new Error('Twitch returned an invalid authorization response.');
+    }
+
+    const tokens = value as Record<string, unknown>;
+
+    if (typeof tokens.access_token !== 'string' || typeof tokens.refresh_token !== 'string') {
+      throw new Error('Twitch returned an incomplete authorization response.');
+    }
+
+    return {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    };
+  }
+
+  async validateUserAccessToken(accessToken: string): Promise<TwitchTokenIdentity> {
+    const response = await this.fetcher('https://id.twitch.tv/oauth2/validate', {
+      headers: {
+        Authorization: `OAuth ${accessToken}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Twitch token validation failed with status ${response.status}.`);
+    }
+
+    const value: unknown = await response.json();
+
+    if (!value || typeof value !== 'object') {
+      throw new Error('Twitch returned an invalid token validation response.');
+    }
+
+    const identity = value as Record<string, unknown>;
+
+    if (
+      typeof identity.client_id !== 'string' ||
+      typeof identity.login !== 'string' ||
+      typeof identity.user_id !== 'string'
+    ) {
+      throw new Error('Twitch token does not identify a user.');
+    }
+
+    return {
+      clientId: identity.client_id,
+      login: identity.login.toLowerCase(),
+      userId: identity.user_id,
+    };
+  }
+
+  async revokeToken(token: string) {
+    const response = await this.fetcher('https://id.twitch.tv/oauth2/revoke', {
+      body: new URLSearchParams({
+        client_id: this.credentials.clientId,
+        token,
+      }),
+      method: 'POST',
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Twitch token revocation failed with status ${response.status}.`);
+    }
   }
 
   async getUser(login: string): Promise<TwitchUser | null> {
