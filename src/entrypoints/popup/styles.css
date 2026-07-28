@@ -107,41 +107,6 @@ body {
   font-weight: 600;
 }
 
-.privacy-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.privacy-setting__title {
-  margin: 0 0 4px;
-  font-size: 14px;
-  line-height: 18px;
-}
-
-.privacy-setting__description {
-  max-width: 230px;
-  margin: 0;
-  color: #adadb8;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.privacy-setting__checkbox {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  margin: 0;
-  accent-color: #9147ff;
-  cursor: pointer;
-}
-
-.privacy-setting__checkbox:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-
 .popup__error {
   color: #ff8280;
   font-size: 12px;

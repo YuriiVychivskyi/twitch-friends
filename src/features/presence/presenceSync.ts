@@ -2,7 +2,6 @@ import { FirebaseError } from 'firebase/app';
 import { onDisconnect, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 
-import { getPrivacySettings } from '@/features/privacy/privacySettings';
 import { normalizeTwitchLogin } from '@/features/presence/twitchChannel';
 import {
   decryptPresence,
@@ -161,9 +160,7 @@ async function publishPresence() {
     return;
   }
 
-  const settings = await getPrivacySettings();
-
-  if (!settings.sharePresence || !activeChannel) {
+  if (!activeChannel) {
     await clearPublishedPresence();
     return;
   }
@@ -329,10 +326,6 @@ export async function startPresenceSync(channel: TwitchChannel | null) {
 
 export function updatePresenceChannel(channel: TwitchChannel | null) {
   activeChannel = channel;
-  void queuePresencePublish().catch(() => undefined);
-}
-
-export function refreshPresenceSharing() {
   void queuePresencePublish().catch(() => undefined);
 }
 

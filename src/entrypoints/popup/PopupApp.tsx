@@ -3,7 +3,6 @@ import { browser } from 'wxt/browser';
 
 import { FriendsPanel } from '@/features/friends/FriendsPanel';
 import { ProfilePanel } from '@/features/profile/ProfilePanel';
-import { getPrivacySettings, setPresenceSharingEnabled } from '@/features/privacy/privacySettings';
 import {
   ACTIVE_CHANNEL_GET,
   isTwitchChannel,
@@ -36,35 +35,7 @@ function healthText(item: StatusItem) {
 
 export function PopupApp() {
   const [activeChannel, setActiveChannel] = useState<TwitchChannel | null>(null);
-  const [privacyError, setPrivacyError] = useState(false);
-  const [privacyReady, setPrivacyReady] = useState(false);
-  const [sharePresence, setSharePresence] = useState(false);
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    void getPrivacySettings()
-      .then((settings) => {
-        if (active) {
-          setSharePresence(settings.sharePresence);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setPrivacyError(true);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setPrivacyReady(true);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -131,20 +102,6 @@ export function PopupApp() {
     },
   ];
 
-  const updatePresenceSharing = async (enabled: boolean) => {
-    const previousValue = sharePresence;
-
-    setPrivacyError(false);
-    setSharePresence(enabled);
-
-    try {
-      await setPresenceSharingEnabled(enabled);
-    } catch {
-      setPrivacyError(true);
-      setSharePresence(previousValue);
-    }
-  };
-
   return (
     <main className="popup">
       <header className="popup__header">
@@ -181,34 +138,6 @@ export function PopupApp() {
       </section>
 
       <ProfilePanel />
-
-      <section className="privacy-setting" aria-labelledby="presence-sharing-label">
-        <div>
-          <h2 className="privacy-setting__title" id="presence-sharing-label">
-            Presence sharing
-          </h2>
-          <p className="privacy-setting__description">
-            Shared only with friends you have accepted.
-          </p>
-        </div>
-
-        <input
-          className="privacy-setting__checkbox"
-          aria-label="Enable presence sharing"
-          checked={sharePresence}
-          disabled={!privacyReady}
-          type="checkbox"
-          onChange={(event) => {
-            void updatePresenceSharing(event.target.checked);
-          }}
-        />
-      </section>
-
-      {privacyError ? (
-        <p className="popup__error" role="status">
-          Could not save the privacy setting.
-        </p>
-      ) : null}
 
       <FriendsPanel />
 

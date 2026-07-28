@@ -13,7 +13,7 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 - Active Twitch channel detection across page navigation
 - Anonymous Firebase authentication
 - Local ECDH identity with a non-extractable private key
-- Popup privacy control with presence sharing disabled by default
+- Automatic presence sharing between accepted friends
 - Local friend storage with Twitch login validation
 - Popup controls for sending, accepting, declining, and removing friend connections
 - Twitch ownership validation and profile images through the server

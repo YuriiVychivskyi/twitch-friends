@@ -27,7 +27,6 @@
 | Data                       | Location                | Remote representation          |
 | -------------------------- | ----------------------- | ------------------------------ |
 | Private cryptographic keys | Extension IndexedDB     | Never uploaded                 |
-| Local privacy settings     | Extension local storage | Never uploaded                 |
 | Sidebar friend cache       | Extension local storage | Accepted public Twitch profile |
 | Public identity keys       | Cloud Firestore         | Public key material only       |
 | Mutual friend grants       | Cloud Firestore         | Member identifiers and state   |
@@ -58,6 +57,9 @@ minimum display model before it reaches the sidebar UI.
 Presence records contain ciphertext, an initialization vector, a protocol version, and expiry
 metadata. They do not contain a plaintext Twitch channel, display name, URL, title, category, or
 viewing history.
+
+Mutual friend acceptance authorizes presence sharing. Removing a friend revokes database access and
+deletes both directions of the active presence mailbox.
 
 Realtime Database handles connection state and removes presence using `onDisconnect`. Clients also
 reject expired payloads locally and remove expired decrypted display state from extension storage.

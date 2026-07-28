@@ -6,12 +6,10 @@ import {
 } from '@/features/presence/twitchChannel';
 import {
   refreshPresenceFriends,
-  refreshPresenceSharing,
   startPresenceSync,
   updatePresenceChannel,
 } from '@/features/presence/presenceSync';
 import { LOCAL_FRIENDS_KEY } from '@/features/friends/localFriends';
-import { PRIVACY_SETTINGS_KEY } from '@/features/privacy/privacySettings';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import {
   getRuntimeStatus,
@@ -103,10 +101,6 @@ export default defineBackground(() => {
   });
 
   browser.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes[PRIVACY_SETTINGS_KEY]) {
-      refreshPresenceSharing();
-    }
-
     if (areaName === 'local' && changes[LOCAL_FRIENDS_KEY]) {
       refreshPresenceFriends();
     }
