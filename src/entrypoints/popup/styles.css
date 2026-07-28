@@ -188,19 +188,41 @@ body {
   font-size: 12px;
 }
 
-.profile-panel__connect {
+.profile-panel__actions {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-panel__button {
   min-height: 34px;
-  border: 0;
+  border: 1px solid #53535f;
   border-radius: 4px;
   padding: 0 14px;
   color: #fff;
-  background: #9147ff;
+  background: #2f2f35;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
-.profile-panel__connect:disabled {
+.profile-panel__button--primary {
+  border-color: transparent;
+  background: #9147ff;
+}
+
+.profile-panel__delete {
+  justify-self: start;
+  border: 0;
+  padding: 2px 0;
+  color: #e91916;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.profile-panel__button:disabled,
+.profile-panel__delete:disabled {
   cursor: default;
   opacity: 0.5;
 }

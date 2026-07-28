@@ -1,29 +1,9 @@
-import { FirebaseError } from 'firebase/app';
-import { httpsCallable } from 'firebase/functions';
-
-import { getFirebaseEnvironment } from '@/config/firebaseEnvironment';
-import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
-import { getFirebaseFunctions } from '@/infrastructure/firebase/firebaseFunctions';
+import { enableAccountSetup } from '@/features/profile/accountState';
+import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
 
 type TwitchAuthorizationStart = {
   authorizationUrl: string;
 };
-
-function getOAuthCallbackUri() {
-  const environment = getFirebaseEnvironment();
-
-  if (environment.useEmulators) {
-    return `http://localhost:5001/${environment.projectId}/europe-west1/twitchOAuthCallback`;
-  }
-
-  const callbackUri = import.meta.env.WXT_PUBLIC_TWITCH_OAUTH_CALLBACK_URL?.trim();
-
-  if (!callbackUri) {
-    throw new Error('Twitch OAuth callback URL is not configured.');
-  }
-
-  return callbackUri;
-}
 
 function isAuthorizationStart(value: unknown): value is TwitchAuthorizationStart {
   if (!value || typeof value !== 'object') {
@@ -37,45 +17,47 @@ function isAuthorizationStart(value: unknown): value is TwitchAuthorizationStart
   }
 
   try {
-    return new URL(authorizationUrl).origin === 'https://id.twitch.tv';
+    const url = new URL(authorizationUrl);
+
+    return (
+      authorizationUrl.length <= 2_048 &&
+      url.origin === 'https://id.twitch.tv' &&
+      url.pathname === '/oauth2/authorize' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.searchParams.get('response_type') === 'code' &&
+      /^[a-f0-9]{64}$/u.test(url.searchParams.get('state') ?? '')
+    );
   } catch {
     return false;
   }
 }
 
 export async function authorizeWithTwitch() {
-  await ensureAnonymousAuth();
-
-  const startAuthorization = httpsCallable<{ callbackUri: string }, TwitchAuthorizationStart>(
-    getFirebaseFunctions(),
-    'startTwitchAuthorization',
-  );
+  await enableAccountSetup();
 
   try {
-    const result = await startAuthorization({
-      callbackUri: getOAuthCallbackUri(),
+    const result = await requestBackend<TwitchAuthorizationStart>('/api/oauth/start', {
+      method: 'POST',
     });
 
-    if (!isAuthorizationStart(result.data)) {
+    if (!isAuthorizationStart(result)) {
       throw new Error('Profile backend returned an invalid authorization URL.');
     }
 
     await browser.tabs.create({
-      url: result.data.authorizationUrl,
+      url: result.authorizationUrl,
     });
   } catch (cause) {
-    if (cause instanceof FirebaseError && cause.code === 'functions/permission-denied') {
-      throw new Error('Twitch OAuth callback URL is not allowed by the backend.', { cause });
+    if (cause instanceof BackendError && cause.code === 'permission-denied') {
+      throw new Error('This extension origin is not allowed.', { cause });
     }
 
-    if (cause instanceof FirebaseError && cause.code === 'functions/resource-exhausted') {
+    if (cause instanceof BackendError && cause.code === 'resource-exhausted') {
       throw new Error('Wait a few seconds before trying again.', { cause });
     }
 
-    if (
-      cause instanceof FirebaseError &&
-      ['functions/internal', 'functions/unavailable'].includes(cause.code)
-    ) {
+    if (cause instanceof BackendError && ['internal', 'unavailable'].includes(cause.code)) {
       throw new Error('Profile backend is unavailable.', { cause });
     }
 

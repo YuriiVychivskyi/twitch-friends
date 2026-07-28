@@ -6,9 +6,9 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { get, ref, set } from 'firebase/database';
+import { get, ref, remove, set } from 'firebase/database';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 const projectId = 'demo-twitch-friends';
 
@@ -28,6 +28,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await testEnvironment.cleanup();
+});
+
+beforeEach(async () => {
+  await testEnvironment.clearDatabase();
+  await testEnvironment.clearFirestore();
 });
 
 describe('fail-closed Firebase rules', () => {
@@ -63,10 +68,39 @@ describe('fail-closed Firebase rules', () => {
     await assertFails(set(reference, { value: 'blocked' }));
   });
 
-  it('allows encrypted presence only between friends', async () => {
+  it('allows users to manage only their own friendship edges', async () => {
+    const alice = testEnvironment.authenticatedContext('alice');
+
+    await assertSucceeds(set(ref(alice.database(), 'friendships/alice/bob'), true));
+    await assertSucceeds(get(ref(alice.database(), 'friendships/alice')));
+    await assertFails(set(ref(alice.database(), 'friendships/bob/alice'), true));
+    await assertFails(set(ref(alice.database(), 'friendships/alice/bob'), false));
+  });
+
+  it('denies self-friendships', async () => {
+    const alice = testEnvironment.authenticatedContext('alice');
+
+    await assertFails(set(ref(alice.database(), 'friendships/alice/alice'), true));
+  });
+  it('denies presence for one-sided friendship edges', async () => {
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
-      await set(ref(context.database(), 'service/enabledUntil'), Date.now() + 60_000);
       await set(ref(context.database(), 'friendships/alice/bob'), true);
+    });
+
+    const alice = testEnvironment.authenticatedContext('alice');
+    const presence = {
+      ciphertext: 'encryptedPayload',
+      expiresAt: Date.now() + 60_000,
+      iv: 'abcdefghijklmnop',
+      version: 1,
+    };
+    await assertFails(set(ref(alice.database(), 'presence/bob/alice'), presence));
+  });
+
+  it('allows encrypted presence only between mutual friends', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'friendships/alice/bob'), true);
+      await set(ref(context.database(), 'friendships/bob/alice'), true);
     });
 
     const alice = testEnvironment.authenticatedContext('alice');
@@ -78,30 +112,30 @@ describe('fail-closed Firebase rules', () => {
       iv: 'abcdefghijklmnop',
       version: 1,
     };
+
     const reference = ref(alice.database(), 'presence/bob/alice');
 
     await assertSucceeds(set(reference, presence));
     await assertSucceeds(get(ref(bob.database(), 'presence/bob')));
+    await assertFails(get(ref(alice.database(), 'presence/bob')));
     await assertFails(get(ref(charlie.database(), 'presence/bob')));
-    await assertFails(set(ref(charlie.database(), 'presence/bob/charlie'), presence));
+    await assertSucceeds(remove(reference));
   });
 
-  it('denies presence when the daily service window is closed', async () => {
+  it('allows recipients to clear their presence inbox', async () => {
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
-      await set(ref(context.database(), 'service/enabledUntil'), Date.now() - 1);
-      await set(ref(context.database(), 'friendships/alice/bob'), true);
+      await set(ref(context.database(), 'presence/bob/alice'), {
+        ciphertext: 'encryptedPayload',
+        expiresAt: Date.now() + 60_000,
+        iv: 'abcdefghijklmnop',
+        version: 1,
+      });
     });
 
-    const alice = testEnvironment.authenticatedContext('alice');
     const bob = testEnvironment.authenticatedContext('bob');
-    const presence = {
-      ciphertext: 'encryptedPayload',
-      expiresAt: Date.now() + 60_000,
-      iv: 'abcdefghijklmnop',
-      version: 1,
-    };
+    const alice = testEnvironment.authenticatedContext('alice');
 
-    await assertFails(set(ref(alice.database(), 'presence/bob/alice'), presence));
-    await assertFails(get(ref(bob.database(), 'presence/bob')));
+    await assertSucceeds(remove(ref(bob.database(), 'presence/bob')));
+    await assertFails(remove(ref(alice.database(), 'presence/bob')));
   });
 });

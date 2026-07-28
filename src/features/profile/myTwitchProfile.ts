@@ -1,16 +1,25 @@
-import { FirebaseError } from 'firebase/app';
-import { httpsCallable } from 'firebase/functions';
-
 import { isTwitchUserProfile, type TwitchUserProfile } from '@/features/friends/twitchUserProfile';
-import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
-import { getFirebaseFunctions } from '@/infrastructure/firebase/firebaseFunctions';
+import { isAccountSetupRequired } from '@/features/profile/accountState';
+import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
+
+export const TWITCH_PROFILE_CONNECTED = 'twitch-profile:connected';
+
+export function isTwitchProfileConnectedMessage(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const message = value as Record<string, unknown>;
+
+  return Object.keys(message).length === 1 && message.type === TWITCH_PROFILE_CONNECTED;
+}
 
 function profileError(cause: unknown) {
-  if (!(cause instanceof FirebaseError)) {
+  if (!(cause instanceof BackendError)) {
     return cause;
   }
 
-  if (['functions/internal', 'functions/unavailable'].includes(cause.code)) {
+  if (['internal', 'unavailable'].includes(cause.code)) {
     return new Error('Profile backend is unavailable.', { cause });
   }
 
@@ -18,25 +27,22 @@ function profileError(cause: unknown) {
 }
 
 export async function getMyTwitchProfile() {
-  await ensureAnonymousAuth();
-
-  const getProfile = httpsCallable<undefined, TwitchUserProfile | null>(
-    getFirebaseFunctions(),
-    'getMyTwitchProfile',
-  );
+  if (await isAccountSetupRequired()) {
+    return null;
+  }
 
   try {
-    const result = await getProfile();
+    const profile = await requestBackend<TwitchUserProfile | null>('/api/profile');
 
-    if (result.data === null) {
+    if (profile === null) {
       return null;
     }
 
-    if (!isTwitchUserProfile(result.data)) {
+    if (!isTwitchUserProfile(profile)) {
       throw new Error('Profile backend returned invalid data.');
     }
 
-    return result.data;
+    return profile;
   } catch (cause) {
     throw profileError(cause);
   }

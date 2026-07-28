@@ -30,6 +30,10 @@ function healthText(item: StatusItem) {
     return 'Unavailable';
   }
 
+  if (item.health === 'inactive') {
+    return 'Not connected';
+  }
+
   return 'Checking';
 }
 

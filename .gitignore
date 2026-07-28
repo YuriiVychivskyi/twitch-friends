@@ -13,6 +13,8 @@ web-ext-artifacts/
 .env
 .env.*
 !.env.example
+.dev.vars
+.wrangler/
 
 web-ext.config.ts
 *.tsbuildinfo
@@ -37,7 +39,6 @@ pnpm-debug.log*
 .netlify/
 .firebase/
 firebase-export/
-firebase/functions/lib/
 firebase/functions/.secret.local
 firebase-debug.log*
 firestore-debug.log*

@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-twitch-friends"
+    "default": "demo-twitch-friends",
+    "production": "twitch-friends-2ea03"
   }
 }

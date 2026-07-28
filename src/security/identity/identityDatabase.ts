@@ -77,3 +77,21 @@ export async function writeLocalIdentity(identity: LocalIdentity) {
     database.close();
   }
 }
+
+export function deleteLocalIdentity() {
+  return new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DATABASE_NAME);
+
+    request.onsuccess = () => {
+      resolve();
+    };
+
+    request.onerror = () => {
+      reject(databaseError(request.error, 'Unable to delete identity database.'));
+    };
+
+    request.onblocked = () => {
+      reject(new Error('Identity database is still in use.'));
+    };
+  });
+}

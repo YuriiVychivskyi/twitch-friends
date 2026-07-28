@@ -3,21 +3,26 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: 'src',
-  manifest: ({ browser, manifestVersion }) => {
-    const firebaseHosts = [
-      'http://127.0.0.1/*',
-      'https://europe-west1-demo-twitch-friends.cloudfunctions.net/*',
+  manifest: ({ browser, command, manifestVersion }) => {
+    const backendHosts = [
+      ...(command === 'serve' ? ['http://127.0.0.1/*'] : []),
+      'https://twitch-friends-api.yuravychivskii.workers.dev/*',
     ];
 
     return {
       name: 'Twitch Friends',
       description: 'Share your current Twitch stream with trusted friends.',
-      permissions: manifestVersion === 2 ? ['storage', ...firebaseHosts] : ['storage'],
+      permissions: manifestVersion === 2 ? ['storage', ...backendHosts] : ['storage'],
       ...(manifestVersion === 3
         ? {
-            host_permissions: firebaseHosts,
+            content_security_policy: {
+              extension_pages: "script-src 'self'; object-src 'self';",
+            },
+            host_permissions: backendHosts,
           }
-        : {}),
+        : {
+            content_security_policy: "script-src 'self'; object-src 'self';",
+          }),
       ...(browser === 'firefox'
         ? {
             browser_specific_settings: {

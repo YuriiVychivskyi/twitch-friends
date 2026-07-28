@@ -1,4 +1,5 @@
 import { getFirebaseEnvironment } from '@/config/firebaseEnvironment';
+import { LOCAL_FRIENDS_KEY } from '@/features/friends/localFriends';
 import {
   isActiveChannelRequest,
   isActiveChannelUpdate,
@@ -9,7 +10,11 @@ import {
   startPresenceSync,
   updatePresenceChannel,
 } from '@/features/presence/presenceSync';
-import { LOCAL_FRIENDS_KEY } from '@/features/friends/localFriends';
+import { isAccountSetupRequired } from '@/features/profile/accountState';
+import {
+  getMyTwitchProfile,
+  isTwitchProfileConnectedMessage,
+} from '@/features/profile/myTwitchProfile';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import {
   getRuntimeStatus,
@@ -21,6 +26,8 @@ import { browser } from 'wxt/browser';
 
 let activeChannel: TwitchChannel | null = null;
 let activeTabId: number | null = null;
+let presenceStarted = false;
+let presenceStartPromise: Promise<void> | null = null;
 const tabChannels = new Map<number, TwitchChannel | null>();
 
 function selectChannel(tabId: number, channel: TwitchChannel) {
@@ -69,19 +76,13 @@ async function initializeBackground() {
     });
   }
 
-  try {
-    const identity = await getOrCreateLocalIdentity();
-    const privateKeysProtected = !identity.encryptionPrivateKey.extractable;
-
+  if (await isAccountSetupRequired()) {
     setRuntimeStatus({
-      localIdentity: 'ready',
-      privateKeys: privateKeysProtected ? 'ready' : 'unavailable',
+      firebaseAuth: 'inactive',
+      localIdentity: 'inactive',
+      privateKeys: 'inactive',
     });
-  } catch {
-    setRuntimeStatus({
-      localIdentity: 'unavailable',
-      privateKeys: 'unavailable',
-    });
+    return;
   }
 
   try {
@@ -93,13 +94,49 @@ async function initializeBackground() {
     setRuntimeStatus({
       firebaseAuth: 'unavailable',
     });
-  }
-
-  try {
-    await startPresenceSync(activeChannel);
-  } catch {
     return;
   }
+
+  await startPresenceIfConnected();
+}
+
+function startPresenceIfConnected() {
+  if (presenceStarted) {
+    return Promise.resolve();
+  }
+
+  presenceStartPromise ??= (async () => {
+    try {
+      const profile = await getMyTwitchProfile();
+
+      if (!profile) {
+        setRuntimeStatus({
+          localIdentity: 'inactive',
+          privateKeys: 'inactive',
+        });
+        return;
+      }
+
+      const identity = await getOrCreateLocalIdentity();
+      const privateKeysProtected = !identity.encryptionPrivateKey.extractable;
+
+      setRuntimeStatus({
+        localIdentity: 'ready',
+        privateKeys: privateKeysProtected ? 'ready' : 'unavailable',
+      });
+      await startPresenceSync(activeChannel);
+      presenceStarted = true;
+    } catch {
+      setRuntimeStatus({
+        localIdentity: 'unavailable',
+        privateKeys: 'unavailable',
+      });
+    }
+  })().finally(() => {
+    presenceStartPromise = null;
+  });
+
+  return presenceStartPromise;
 }
 
 export default defineBackground(() => {
@@ -126,6 +163,8 @@ export default defineBackground(() => {
       sendResponse(activeChannel);
     } else if (isRuntimeStatusRequest(message)) {
       sendResponse(getRuntimeStatus());
+    } else if (isTwitchProfileConnectedMessage(message)) {
+      void startPresenceIfConnected();
     }
 
     return false;

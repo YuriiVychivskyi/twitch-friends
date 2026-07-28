@@ -1,0 +1,6 @@
+ALLOWED_EXTENSION_ORIGINS=chrome-extension://nbgcpdcaeoihimognmdaknghgnelnifc
+ALLOW_INSECURE_EMULATOR_AUTH=true
+FIREBASE_PROJECT_ID=demo-twitch-friends
+TWITCH_CLIENT_ID=
+TWITCH_CLIENT_SECRET=
+TWITCH_OAUTH_CALLBACK_URL=http://localhost:8787/oauth/callback

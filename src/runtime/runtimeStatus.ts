@@ -1,4 +1,4 @@
-export type RuntimeHealth = 'pending' | 'ready' | 'unavailable';
+export type RuntimeHealth = 'inactive' | 'pending' | 'ready' | 'unavailable';
 
 export const RUNTIME_STATUS_REQUEST = 'runtime-status:get';
 
@@ -9,7 +9,7 @@ export type RuntimeStatus = {
   privateKeys: RuntimeHealth;
 };
 
-const runtimeHealthValues = new Set<RuntimeHealth>(['pending', 'ready', 'unavailable']);
+const runtimeHealthValues = new Set<RuntimeHealth>(['inactive', 'pending', 'ready', 'unavailable']);
 const environmentValues = new Set<RuntimeStatus['environment']>([
   'emulator',
   'production',

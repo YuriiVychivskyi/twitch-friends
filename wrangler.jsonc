@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "twitch-friends-api",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-07-28",
+  "send_metrics": false,
+  "dependencies_instrumentation": {
+    "enabled": false,
+  },
+  "observability": {
+    "enabled": false,
+  },
+  "triggers": {
+    "crons": ["17 3 * * *"],
+  },
+  "vars": {
+    "ALLOWED_EXTENSION_ORIGINS": "chrome-extension://nbgcpdcaeoihimognmdaknghgnelnifc",
+    "FIREBASE_PROJECT_ID": "twitch-friends-2ea03",
+    "TWITCH_OAUTH_CALLBACK_URL": "https://twitch-friends-api.yuravychivskii.workers.dev/oauth/callback",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "twitch-friends",
+      "database_id": "a91d3916-559e-4d41-b24a-2cf5dbb94166",
+      "migrations_dir": "worker/migrations",
+    },
+  ],
+  "dev": {
+    "ip": "127.0.0.1",
+    "port": 8787,
+  },
+}

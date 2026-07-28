@@ -1,6 +1,4 @@
-import { FirebaseError } from 'firebase/app';
 import { onDisconnect, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
-import { httpsCallable } from 'firebase/functions';
 
 import { normalizeTwitchLogin } from '@/features/presence/twitchChannel';
 import {
@@ -9,10 +7,11 @@ import {
   type EncryptedPresence,
 } from '@/features/presence/presenceCrypto';
 import { saveFriendPresence, type FriendPresence } from '@/features/presence/friendPresence';
+import { syncFriendshipEdges } from '@/features/presence/friendshipEdges';
 import { type TwitchChannel } from '@/features/presence/twitchChannel';
+import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import { getFirebaseDatabase } from '@/infrastructure/firebase/firebaseDatabase';
-import { getFirebaseFunctions } from '@/infrastructure/firebase/firebaseFunctions';
 import { getOrCreateLocalIdentity } from '@/security/identity/localIdentity';
 import type { LocalIdentity, PublicIdentityKey } from '@/security/identity/localIdentityTypes';
 
@@ -129,21 +128,19 @@ function parseEncryptedPresence(value: unknown): EncryptedPresence | null {
 }
 
 async function registerIdentity(localIdentity: LocalIdentity) {
-  const register = httpsCallable(getFirebaseFunctions(), 'registerPublicIdentity');
-
-  await register({
-    encryptionKey: localIdentity.encryptionPublicKey,
+  await requestBackend('/api/identity', {
+    body: {
+      encryptionKey: localIdentity.encryptionPublicKey,
+    },
+    method: 'PUT',
   });
 }
 
 async function refreshFriends() {
-  const getFriends = httpsCallable<undefined, unknown>(
-    getFirebaseFunctions(),
-    'getPresenceFriends',
-  );
-  const result = await getFriends();
+  const result = await requestBackend<unknown>('/api/presence-friends');
 
-  friends = parsePresenceFriends(result.data);
+  friends = parsePresenceFriends(result);
+  await syncFriendshipEdges(friends.map((friend) => friend.id));
 }
 
 async function clearPublishedPresence() {
@@ -304,7 +301,7 @@ async function refreshPresenceState() {
     listenForPresence();
     await queuePresencePublish();
   } catch (cause) {
-    if (!(cause instanceof FirebaseError)) {
+    if (!(cause instanceof BackendError)) {
       throw cause;
     }
   }

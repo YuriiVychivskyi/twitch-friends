@@ -5,13 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: [
-      '.output/**',
-      '.wxt/**',
-      'coverage/**',
-      'firebase/functions/lib/**',
-      'node_modules/**',
-    ],
+    ignores: ['.output/**', '.tmp/**', '.wrangler/**', '.wxt/**', 'coverage/**', 'node_modules/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked.map((config) => ({
@@ -51,9 +45,9 @@ export default tseslint.config(
     },
   },
   {
-    files: ['firebase/functions/**/*.ts'],
+    files: ['worker/**/*.ts'],
     languageOptions: {
-      globals: globals.node,
+      globals: globals.serviceworker,
     },
   },
 );

@@ -21,5 +21,13 @@ describe('runtime status', () => {
         uid: 'private',
       }),
     ).toBe(false);
+    expect(
+      isRuntimeStatus({
+        environment: 'production',
+        firebaseAuth: 'inactive',
+        localIdentity: 'inactive',
+        privateKeys: 'inactive',
+      }),
+    ).toBe(true);
   });
 });

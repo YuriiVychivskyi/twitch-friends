@@ -1,9 +1,6 @@
-import { FirebaseError } from 'firebase/app';
-import { httpsCallable } from 'firebase/functions';
-
 import { isTwitchUserProfile, type TwitchUserProfile } from '@/features/friends/twitchUserProfile';
-import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
-import { getFirebaseFunctions } from '@/infrastructure/firebase/firebaseFunctions';
+import { syncFriendshipEdges } from '@/features/presence/friendshipEdges';
+import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
 
 export type FriendConnection = {
   id: string;
@@ -69,27 +66,27 @@ function parseFriendState(value: unknown): FriendState {
 }
 
 function friendError(cause: unknown) {
-  if (!(cause instanceof FirebaseError)) {
+  if (!(cause instanceof BackendError)) {
     return cause;
   }
 
-  if (cause.code === 'functions/not-found') {
+  if (cause.code === 'not-found') {
     return new Error('This user has not connected Twitch Friends.', { cause });
   }
 
-  if (cause.code === 'functions/already-exists') {
+  if (cause.code === 'already-exists') {
     return new Error('This user already sent you a friend request.', { cause });
   }
 
-  if (cause.code === 'functions/failed-precondition') {
+  if (cause.code === 'failed-precondition') {
     return new Error('Connect Twitch or check your incoming requests.', { cause });
   }
 
-  if (cause.code === 'functions/resource-exhausted') {
+  if (cause.code === 'resource-exhausted') {
     return new Error('Request limit reached. Try again later.', { cause });
   }
 
-  if (['functions/internal', 'functions/unavailable'].includes(cause.code)) {
+  if (['internal', 'unavailable'].includes(cause.code)) {
     return new Error('Friends backend is unavailable.', { cause });
   }
 
@@ -97,46 +94,36 @@ function friendError(cause: unknown) {
 }
 
 export async function getFriendState() {
-  await ensureAnonymousAuth();
-
-  const getFriends = httpsCallable<undefined, FriendState>(getFirebaseFunctions(), 'getFriends');
-
   try {
-    const result = await getFriends();
+    const state = parseFriendState(await requestBackend<FriendState>('/api/friends'));
 
-    return parseFriendState(result.data);
+    await syncFriendshipEdges(state.friends.map((friend) => friend.id));
+
+    return state;
   } catch (cause) {
     throw friendError(cause);
   }
 }
 
 export async function createFriendRequest(login: string) {
-  await ensureAnonymousAuth();
-
-  const createRequest = httpsCallable<{ login: string }, { success: boolean }>(
-    getFirebaseFunctions(),
-    'createFriendRequest',
-  );
-
   try {
-    await createRequest({ login });
+    await requestBackend('/api/friends/requests', {
+      body: { login },
+      method: 'POST',
+    });
   } catch (cause) {
     throw friendError(cause);
   }
 }
 
 export async function respondToFriendRequest(connectionId: string, accept: boolean) {
-  await ensureAnonymousAuth();
-
-  const respond = httpsCallable<{ accept: boolean; connectionId: string }, { success: boolean }>(
-    getFirebaseFunctions(),
-    'respondToFriendRequest',
-  );
-
   try {
-    await respond({
-      accept,
-      connectionId,
+    await requestBackend('/api/friends/respond', {
+      body: {
+        accept,
+        connectionId,
+      },
+      method: 'POST',
     });
   } catch (cause) {
     throw friendError(cause);
@@ -144,15 +131,10 @@ export async function respondToFriendRequest(connectionId: string, accept: boole
 }
 
 export async function removeFriendConnection(connectionId: string) {
-  await ensureAnonymousAuth();
-
-  const removeFriend = httpsCallable<{ connectionId: string }, { success: boolean }>(
-    getFirebaseFunctions(),
-    'removeFriend',
-  );
-
   try {
-    await removeFriend({ connectionId });
+    await requestBackend(`/api/friends/${encodeURIComponent(connectionId)}`, {
+      method: 'DELETE',
+    });
   } catch (cause) {
     throw friendError(cause);
   }

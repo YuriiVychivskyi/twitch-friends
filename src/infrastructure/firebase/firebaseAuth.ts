@@ -1,8 +1,10 @@
 import {
   connectAuthEmulator,
+  deleteUser,
   getAuth,
   indexedDBLocalPersistence,
   setPersistence,
+  signOut,
   signInAnonymously,
 } from 'firebase/auth/web-extension';
 
@@ -42,4 +44,35 @@ export function ensureAnonymousAuth() {
   });
 
   return authPromise;
+}
+
+export async function getFirebaseIdToken() {
+  await ensureAnonymousAuth();
+
+  const user = getAuth(getFirebaseApp()).currentUser;
+
+  if (!user) {
+    throw new Error('Firebase authentication is unavailable.');
+  }
+
+  return user.getIdToken();
+}
+
+export async function deleteFirebaseAccount() {
+  const auth = getAuth(getFirebaseApp());
+
+  await auth.authStateReady();
+
+  if (auth.currentUser) {
+    await deleteUser(auth.currentUser);
+  }
+
+  authPromise = null;
+}
+
+export async function clearFirebaseSession() {
+  const auth = getAuth(getFirebaseApp());
+
+  authPromise = null;
+  await signOut(auth);
 }

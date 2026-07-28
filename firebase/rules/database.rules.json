@@ -5,17 +5,18 @@
     "friendships": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
         "$friendUid": {
-          ".write": false,
-          ".validate": "newData.val() === true"
+          ".validate": "$friendUid !== $uid && $friendUid.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.val() === true"
         }
       }
     },
     "presence": {
       "$recipientUid": {
-        ".read": "auth != null && auth.uid === $recipientUid && root.child('service').child('enabledUntil').val() > now",
+        ".read": "auth != null && auth.uid === $recipientUid",
+        ".write": "auth != null && auth.uid === $recipientUid && !newData.exists()",
         "$senderUid": {
-          ".write": "auth != null && auth.uid === $senderUid && root.child('friendships').child($senderUid).child($recipientUid).val() === true && (!newData.exists() || root.child('service').child('enabledUntil').val() > now)",
+          ".write": "auth != null && auth.uid === $senderUid && (!newData.exists() || (root.child('friendships').child($senderUid).child($recipientUid).val() === true && root.child('friendships').child($recipientUid).child($senderUid).val() === true))",
           ".validate": "!newData.exists() || newData.hasChildren(['ciphertext', 'expiresAt', 'iv', 'version'])",
           "ciphertext": {
             ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{16,512}$/)"
