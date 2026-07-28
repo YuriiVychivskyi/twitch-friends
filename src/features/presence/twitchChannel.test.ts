@@ -14,6 +14,8 @@ describe('Twitch channel detection', () => {
     'https://www.twitch.tv/',
     'https://www.twitch.tv/directory',
     'https://www.twitch.tv/following',
+    'https://www.twitch.tv/messages',
+    'https://www.twitch.tv/popout',
     'https://www.twitch.tv/search',
     'https://www.twitch.tv/videos/123',
     'https://example.com/some_channel',

@@ -188,7 +188,7 @@ export function PopupApp() {
             Presence sharing
           </h2>
           <p className="privacy-setting__description">
-            Saved locally. Presence sync is not connected yet.
+            Shared only with friends you have accepted.
           </p>
         </div>
 

@@ -11,7 +11,7 @@ type SidebarMount = {
 
 function createSidebarMount(mountPoint: HTMLElement): SidebarMount {
   const host = document.createElement('div');
-  const shadowRoot = host.attachShadow({ mode: 'open' });
+  const shadowRoot = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
   const appRoot = document.createElement('div');
 

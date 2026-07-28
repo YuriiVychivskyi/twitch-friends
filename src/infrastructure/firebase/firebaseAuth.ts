@@ -36,7 +36,10 @@ async function initializeAnonymousAuth() {
 }
 
 export function ensureAnonymousAuth() {
-  authPromise ??= initializeAnonymousAuth();
+  authPromise ??= initializeAnonymousAuth().catch((cause: unknown) => {
+    authPromise = null;
+    throw cause;
+  });
 
   return authPromise;
 }

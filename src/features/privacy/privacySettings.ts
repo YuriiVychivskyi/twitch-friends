@@ -5,7 +5,7 @@ export type PrivacySettings = {
   version: 1;
 };
 
-const PRIVACY_SETTINGS_KEY = 'privacy-settings';
+export const PRIVACY_SETTINGS_KEY = 'privacy-settings';
 
 export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   sharePresence: false,

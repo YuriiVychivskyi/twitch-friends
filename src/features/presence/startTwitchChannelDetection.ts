@@ -1,14 +1,18 @@
 import { browser } from 'wxt/browser';
 
-import { ACTIVE_CHANNEL_UPDATE, parseTwitchChannel } from '@/features/presence/twitchChannel';
+import {
+  ACTIVE_CHANNEL_UPDATE,
+  parseTwitchChannel,
+  type TwitchChannel,
+} from '@/features/presence/twitchChannel';
 
 export function startTwitchChannelDetection() {
   let previousUrl: string | null = null;
 
-  const sendChannelUpdate = async (url: string) => {
+  const sendChannelUpdate = async (channel: TwitchChannel | null) => {
     try {
       await browser.runtime.sendMessage({
-        channel: parseTwitchChannel(url),
+        channel,
         type: ACTIVE_CHANNEL_UPDATE,
       });
     } catch {
@@ -18,7 +22,11 @@ export function startTwitchChannelDetection() {
 
   const updateChannel = () => {
     if (document.visibilityState !== 'visible') {
-      previousUrl = null;
+      if (previousUrl !== null) {
+        previousUrl = null;
+        void sendChannelUpdate(null);
+      }
+
       return;
     }
 
@@ -27,7 +35,7 @@ export function startTwitchChannelDetection() {
     }
 
     previousUrl = window.location.href;
-    void sendChannelUpdate(previousUrl);
+    void sendChannelUpdate(parseTwitchChannel(previousUrl));
   };
 
   const observer = new MutationObserver(updateChannel);
