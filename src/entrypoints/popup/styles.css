@@ -29,9 +29,10 @@ body {
 
 .popup__header {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
+.popup__author,
 .popup__eyebrow,
 .popup__error,
 .popup__privacy,
@@ -50,6 +51,37 @@ body {
 .popup__title {
   font-size: 24px;
   line-height: 1.2;
+}
+
+.popup__title-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.popup__version {
+  border: 1px solid #5c3b8a;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #d8bfff;
+  background: #2b1d3f;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.popup__author {
+  width: fit-content;
+  color: #adadb8;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.popup__author:hover {
+  color: #bf94ff;
+  text-decoration: underline;
 }
 
 .status-list {

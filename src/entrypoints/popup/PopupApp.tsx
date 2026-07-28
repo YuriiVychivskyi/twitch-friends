@@ -36,6 +36,7 @@ function healthText(item: StatusItem) {
 export function PopupApp() {
   const [activeChannel, setActiveChannel] = useState<TwitchChannel | null>(null);
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
+  const version = browser.runtime.getManifest().version;
 
   useEffect(() => {
     let active = true;
@@ -106,7 +107,18 @@ export function PopupApp() {
     <main className="popup">
       <header className="popup__header">
         <p className="popup__eyebrow">Security status</p>
-        <h1 className="popup__title">Twitch Friends</h1>
+        <div className="popup__title-row">
+          <h1 className="popup__title">Twitch Friends</h1>
+          <span className="popup__version">Beta v{version}</span>
+        </div>
+        <a
+          className="popup__author"
+          href="https://www.twitch.tv/livay1337"
+          rel="noreferrer"
+          target="_blank"
+        >
+          by LIVAY1337
+        </a>
       </header>
 
       <section className="status-list" aria-label="Security status">
