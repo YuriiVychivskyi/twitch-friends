@@ -17,6 +17,7 @@ identity, Firebase emulator setup, and fail-closed database rules are working.
 - Local friend storage with Twitch login validation
 - Popup controls for adding and removing local friends
 - Twitch user validation and profile images through a server-side function
+- Twitch OAuth ownership verification for the user's own profile
 - Firestore and Realtime Database rules that deny access by default
 - Local Firebase Emulator Suite workflow
 
@@ -76,21 +77,36 @@ See [docs/security-architecture.md](docs/security-architecture.md) for the curre
 
 ## Permissions
 
-| Permission                       | Reason                                                 |
-| -------------------------------- | ------------------------------------------------------ |
-| `storage`                        | Store extension-owned settings                         |
-| `https://www.twitch.tv/*`        | Add the friends section on Twitch                      |
-| `http://127.0.0.1/*`             | Connect to Firebase emulators during local development |
-| `https://*.cloudfunctions.net/*` | Call the Twitch lookup backend                         |
+| Permission                                                      | Reason                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------ |
+| `storage`                                                       | Store extension-owned settings                         |
+| `https://www.twitch.tv/*`                                       | Add the friends section on Twitch                      |
+| `http://127.0.0.1/*`                                            | Connect to Firebase emulators during local development |
+| `https://europe-west1-demo-twitch-friends.cloudfunctions.net/*` | Call the Twitch backend                                |
 
 ## Environment
 
 Copy `.env.example` to `.env`. Values prefixed with `WXT_PUBLIC_` are included in the extension
 bundle and must never contain secrets.
 
+Local development uses this OAuth callback:
+
+```text
+http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback
+```
+
+Add it to the Twitch app's OAuth Redirect URLs and to `oauthRedirectUris` in
+`firebase/functions/.secret.local`. Production builds set
+`WXT_PUBLIC_TWITCH_OAUTH_CALLBACK_URL` to the deployed HTTPS function URL.
+
+The local secret uses this shape:
+
+```json
+TWITCH_API_CONFIG={"clientId":"...","clientSecret":"...","oauthRedirectUris":["http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback"]}
+```
+
 ## Next steps
 
-- Register discoverable profiles in Firestore
 - Design mutual friend invitations
 - Publish short-lived encrypted presence
 - Add presence expiry and reconnect handling

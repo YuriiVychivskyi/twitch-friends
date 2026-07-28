@@ -20,6 +20,7 @@
 | Extension local storage    | Trusted local preferences and friend metadata |
 | Firebase client services   | Untrusted for plaintext presence              |
 | Firebase Admin environment | Administrative and never bundled              |
+| Twitch OAuth callback      | Trusted one-time identity verification        |
 
 ## Data placement
 
@@ -39,6 +40,11 @@
 Firebase Anonymous Authentication provides an installation-scoped UID without Twitch, email, or
 password registration. Reinstalling the extension or clearing its storage creates a new identity
 and requires pairing again.
+
+Twitch account ownership is verified through a server-side authorization-code callback. The
+extension receives neither the authorization code nor Twitch tokens. OAuth state values are random,
+single-use, short-lived, stored only as SHA-256 hashes, and bound to the initiating Firebase UID.
+User and refresh tokens are revoked after verification and are never persisted.
 
 The extension generates non-extractable Web Crypto keys and stores them in extension-owned
 IndexedDB. Only public key material may leave the device.
@@ -65,6 +71,7 @@ reject expired payloads locally.
 - Payload schemas, field counts, string lengths, and timestamps are validated in rules.
 - Administrative credentials are restricted to trusted backend environments.
 - Firebase API keys identify the project and are not treated as authorization.
+- Twitch profile lookups are limited per authenticated installation.
 
 ## Browser isolation
 
