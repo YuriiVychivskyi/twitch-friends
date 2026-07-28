@@ -1,6 +1,8 @@
 import { ApiError, isApiError } from './errors';
 import type { Env } from './types';
 
+type OriginEnvironment = Pick<Env, 'ALLOWED_EXTENSION_ORIGINS'>;
+
 const jsonHeaders = {
   'Cache-Control': 'no-store',
   'Content-Type': 'application/json; charset=utf-8',
@@ -32,7 +34,7 @@ export function errorResponse(cause: unknown) {
   );
 }
 
-export function getAllowedOrigins(env: Env) {
+export function getAllowedOrigins(env: OriginEnvironment) {
   return new Set(
     env.ALLOWED_EXTENSION_ORIGINS.split(',')
       .map((origin) => origin.trim())
@@ -40,10 +42,23 @@ export function getAllowedOrigins(env: Env) {
   );
 }
 
-export function requireAllowedOrigin(request: Request, env: Env) {
-  const origin = request.headers.get('Origin') ?? '';
+export function getAllowedRequestOrigin(request: Request, env: OriginEnvironment) {
+  const allowedOrigins = getAllowedOrigins(env);
+  const origin = request.headers.get('Origin')?.trim() ?? '';
 
-  if (!getAllowedOrigins(env).has(origin)) {
+  if (origin && origin !== 'null') {
+    return allowedOrigins.has(origin) ? origin : null;
+  }
+
+  const extensionOrigin = request.headers.get('X-Twitch-Friends-Origin')?.trim() ?? '';
+
+  return allowedOrigins.has(extensionOrigin) ? extensionOrigin : null;
+}
+
+export function requireAllowedOrigin(request: Request, env: OriginEnvironment) {
+  const origin = getAllowedRequestOrigin(request, env);
+
+  if (!origin) {
     throw new ApiError(403, 'permission-denied', 'Extension origin is not allowed.');
   }
 
@@ -54,7 +69,10 @@ export function withCors(response: Response, origin: string) {
   const headers = new Headers(response.headers);
 
   headers.set('Access-Control-Allow-Credentials', 'false');
-  headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  headers.set(
+    'Access-Control-Allow-Headers',
+    'Authorization, Content-Type, X-Twitch-Friends-Origin',
+  );
   headers.set('Access-Control-Allow-Methods', 'DELETE, GET, OPTIONS, POST, PUT');
   headers.set('Access-Control-Allow-Origin', origin);
   headers.set('Access-Control-Max-Age', '600');

@@ -1,3 +1,5 @@
+import { browser } from 'wxt/browser';
+
 import { getBackendUrl } from '@/config/backendEnvironment';
 import { getFirebaseIdToken } from '@/infrastructure/firebase/firebaseAuth';
 
@@ -30,6 +32,7 @@ export async function requestBackend<T>(
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     headers: {
       Authorization: `Bearer ${token}`,
+      'X-Twitch-Friends-Origin': browser.runtime.getURL('').replace(/\/$/u, ''),
       ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     method: init.method ?? 'GET',

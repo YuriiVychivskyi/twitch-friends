@@ -3,6 +3,7 @@ import { verifyFirebaseIdentity } from './firebaseAuth';
 import {
   errorResponse,
   getAllowedOrigins,
+  getAllowedRequestOrigin,
   json,
   readJson,
   requireAllowedOrigin,
@@ -331,10 +332,10 @@ export default {
 
       return withCors(await handleApiRequest(request, env), origin);
     } catch (cause) {
-      const origin = request.headers.get('Origin') ?? '';
+      const origin = getAllowedRequestOrigin(request, env);
       const response = errorResponse(cause);
 
-      return getAllowedOrigins(env).has(origin) ? withCors(response, origin) : response;
+      return origin ? withCors(response, origin) : response;
     }
   },
 } satisfies ExportedHandler<Env>;

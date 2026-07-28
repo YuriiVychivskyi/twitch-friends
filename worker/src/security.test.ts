@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readJson } from './http';
+import { readJson, requireAllowedOrigin } from './http';
 import { enforcePublicCallbackLimit, enforceRequestLimits } from './rateLimit';
 import { cleanupExpiredData } from './repository';
 
@@ -34,6 +34,33 @@ function createDatabase(results: Array<Record<string, unknown> | null>) {
 }
 
 describe('Worker request security', () => {
+  const originEnvironment = {
+    ALLOWED_EXTENSION_ORIGINS: 'chrome-extension://allowed',
+  };
+
+  it('accepts the declared extension origin when browsers omit Origin on GET', () => {
+    const request = new Request('https://example.test/api', {
+      headers: {
+        'X-Twitch-Friends-Origin': 'chrome-extension://allowed',
+      },
+    });
+
+    expect(requireAllowedOrigin(request, originEnvironment)).toBe('chrome-extension://allowed');
+  });
+
+  it('does not let the extension header override a hostile browser origin', () => {
+    const request = new Request('https://example.test/api', {
+      headers: {
+        Origin: 'https://example.test',
+        'X-Twitch-Friends-Origin': 'chrome-extension://allowed',
+      },
+    });
+
+    expect(() => requireAllowedOrigin(request, originEnvironment)).toThrow(
+      'Extension origin is not allowed.',
+    );
+  });
+
   it('uses bounded rate-limit keys and applies the global budget last', async () => {
     const { calls, database } = createDatabase([{ count: 1 }, { count: 1 }, { count: 1 }]);
 
