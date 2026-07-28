@@ -48,6 +48,12 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.10",
-    "wxt": "0.20.27"
+    "wxt": "0.21.2"
+  },
+  "overrides": {
+    "@opentelemetry/core": "2.8.0",
+    "brace-expansion": "5.0.8",
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
   }
 }
