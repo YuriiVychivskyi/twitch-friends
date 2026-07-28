@@ -5,6 +5,40 @@ export type TwitchUser = {
   login: string;
 };
 
+function isProfileImageUrl(value: string) {
+  if (value.length === 0) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+
+    return value.length <= 2_048 && url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function isTwitchUser(value: unknown): value is TwitchUser {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const user = value as Record<string, unknown>;
+
+  return (
+    typeof user.avatarUrl === 'string' &&
+    isProfileImageUrl(user.avatarUrl) &&
+    typeof user.displayName === 'string' &&
+    user.displayName.length >= 1 &&
+    user.displayName.length <= 25 &&
+    typeof user.id === 'string' &&
+    /^\d{1,32}$/u.test(user.id) &&
+    typeof user.login === 'string' &&
+    /^[a-z0-9_]{1,25}$/u.test(user.login)
+  );
+}
+
 type TwitchCredentials = {
   clientId: string;
   clientSecret: string;
@@ -192,11 +226,17 @@ export class TwitchClient {
       throw new Error('Twitch returned an incomplete user response.');
     }
 
-    return {
+    const normalizedUser = {
       avatarUrl: user.profile_image_url,
       displayName: user.display_name,
       id: user.id,
       login: user.login.toLowerCase(),
     };
+
+    if (!isTwitchUser(normalizedUser)) {
+      throw new Error('Twitch returned invalid user data.');
+    }
+
+    return normalizedUser;
   }
 }

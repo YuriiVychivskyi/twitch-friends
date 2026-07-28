@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { initializeApp } from 'firebase-admin/app';
+import { getDatabase } from 'firebase-admin/database';
 import {
   FieldValue,
   getFirestore,
@@ -10,12 +11,26 @@ import {
 import { defineJsonSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 
-import { TwitchClient, type TwitchUser } from './twitchClient';
+import {
+  getFriendState as loadFriendState,
+  removeAllFriendConnections,
+  removeFriendConnection,
+  respondToFriendRequest as updateFriendRequest,
+  sendFriendRequest,
+} from './friends';
+import { isTwitchUser, TwitchClient, type TwitchUser } from './twitchClient';
 
 type TwitchApiConfig = {
   clientId: string;
   clientSecret: string;
   oauthRedirectUris?: string[];
+};
+
+type PublicIdentityKey = {
+  crv: 'P-256';
+  kty: 'EC';
+  x: string;
+  y: string;
 };
 
 const twitchApiConfig = defineJsonSecret<TwitchApiConfig>('TWITCH_API_CONFIG');
@@ -24,10 +39,25 @@ initializeApp();
 
 const firestore = getFirestore();
 let twitchClient: TwitchClient | null = null;
-const lookupLimit = 30;
-const lookupWindowMilliseconds = 60 * 1_000;
+const callableCors = [
+  'chrome-extension://nbgcpdcaeoihimognmdaknghgnelnifc',
+  /^moz-extension:\/\/[a-f0-9-]+$/u,
+];
+const dailyFunctionLimit = 5_000;
+const functionRuntime = {
+  concurrency: 10,
+  maxInstances: 2,
+  memory: '256MiB' as const,
+  region: 'europe-west1' as const,
+  timeoutSeconds: 30,
+};
+const requestLimitWindowMilliseconds = 60 * 60 * 1_000;
 const oauthStateLifetimeMilliseconds = 10 * 60 * 1_000;
 const oauthStartCooldownMilliseconds = 10 * 1_000;
+const presenceServiceLeaseMilliseconds = 60 * 60 * 1_000;
+const requestWindows = new Map<string, { count: number; resetsAt: number }>();
+let dailyUsageBlockedUntil = 0;
+let presenceServiceEnabledUntil = 0;
 
 function getDocumentValue(document: DocumentSnapshot, field: string): unknown {
   const data: unknown = document.data();
@@ -63,6 +93,54 @@ function getOAuthCallbackUri(data: unknown) {
   return callbackUri;
 }
 
+function getConnectionId(data: unknown) {
+  const input = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const connectionId = typeof input.connectionId === 'string' ? input.connectionId.trim() : '';
+
+  if (!/^[a-z0-9_-]{1,128}$/iu.test(connectionId)) {
+    throw new HttpsError('invalid-argument', 'Invalid friend connection.');
+  }
+
+  return connectionId;
+}
+
+function getPublicIdentityKey(data: unknown, field: string): PublicIdentityKey {
+  const input = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const value = input[field];
+
+  if (!value || typeof value !== 'object') {
+    throw new HttpsError('invalid-argument', 'Public identity key is required.');
+  }
+
+  const key = value as Record<string, unknown>;
+
+  if (
+    key.crv !== 'P-256' ||
+    key.kty !== 'EC' ||
+    typeof key.x !== 'string' ||
+    typeof key.y !== 'string' ||
+    !/^[a-z0-9_-]{43}$/iu.test(key.x) ||
+    !/^[a-z0-9_-]{43}$/iu.test(key.y)
+  ) {
+    throw new HttpsError('invalid-argument', 'Public identity key is invalid.');
+  }
+
+  return {
+    crv: key.crv,
+    kty: key.kty,
+    x: key.x,
+    y: key.y,
+  };
+}
+
+function parseStoredPublicKey(value: unknown): PublicIdentityKey | null {
+  try {
+    return getPublicIdentityKey({ key: value }, 'key');
+  } catch {
+    return null;
+  }
+}
+
 function hashOAuthState(state: string) {
   return createHash('sha256').update(state).digest('hex');
 }
@@ -83,33 +161,31 @@ function getTwitchClient() {
   return twitchClient;
 }
 
-async function getTwitchUser(login: string) {
-  try {
-    return await getTwitchClient().getUser(login);
-  } catch (cause) {
-    if (cause instanceof HttpsError) {
-      throw cause;
-    }
-
-    throw new HttpsError('unavailable', 'Twitch API is temporarily unavailable.');
-  }
-}
-
 async function saveTwitchProfile(uid: string, user: TwitchUser) {
   const ownerReference = firestore.collection('profileOwners').doc(user.login);
   const publicProfileReference = firestore.collection('publicProfiles').doc(user.login);
   const userProfileReference = firestore.collection('userProfiles').doc(uid);
+  const ownerDocument = await ownerReference.get();
+  const previousOwnerUid = getDocumentValue(ownerDocument, 'uid');
+
+  if (typeof previousOwnerUid === 'string' && previousOwnerUid !== uid) {
+    await removeAllFriendConnections(previousOwnerUid);
+  }
 
   try {
     await firestore.runTransaction(async (transaction) => {
-      const [ownerDocument, userProfileDocument] = await Promise.all([
+      const [currentOwnerDocument, userProfileDocument] = await Promise.all([
         transaction.get(ownerReference),
         transaction.get(userProfileReference),
       ]);
-      const ownerUid = getDocumentValue(ownerDocument, 'uid');
+      const ownerUid = getDocumentValue(currentOwnerDocument, 'uid');
       const previousLogin = getDocumentValue(userProfileDocument, 'login');
 
       if (typeof ownerUid === 'string' && ownerUid !== uid) {
+        if (ownerUid !== previousOwnerUid) {
+          throw new HttpsError('aborted', 'Twitch profile ownership changed. Try again.');
+        }
+
         transaction.delete(firestore.collection('userProfiles').doc(ownerUid));
       }
 
@@ -119,8 +195,8 @@ async function saveTwitchProfile(uid: string, user: TwitchUser) {
       }
 
       transaction.set(ownerReference, {
-        createdAt: ownerDocument.exists
-          ? getDocumentValue(ownerDocument, 'createdAt')
+        createdAt: currentOwnerDocument.exists
+          ? getDocumentValue(currentOwnerDocument, 'createdAt')
           : FieldValue.serverTimestamp(),
         uid,
         updatedAt: FieldValue.serverTimestamp(),
@@ -172,49 +248,254 @@ function createOAuthResultPage(success: boolean) {
 </html>`;
 }
 
-async function enforceLookupLimit(uid: string) {
-  const reference = firestore.collection('functionRateLimits').doc(`twitchLookup_${uid}`);
-  const now = Timestamp.now();
+function getNextUtcDay(now: number) {
+  const date = new Date(now);
 
-  await firestore.runTransaction(async (transaction) => {
-    const document = await transaction.get(reference);
-    const storedCount = getDocumentValue(document, 'count');
-    const storedWindowStart = getDocumentValue(document, 'windowStartedAt');
-    const windowActive =
-      storedWindowStart instanceof Timestamp &&
-      now.toMillis() - storedWindowStart.toMillis() < lookupWindowMilliseconds;
-    const count = windowActive && typeof storedCount === 'number' ? storedCount : 0;
-
-    if (count >= lookupLimit) {
-      throw new HttpsError('resource-exhausted', 'Twitch lookup limit reached.');
-    }
-
-    transaction.set(reference, {
-      count: count + 1,
-      windowStartedAt: windowActive ? storedWindowStart : now,
-    });
-  });
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
 }
 
-export const lookupTwitchUser = onCall(
+function enforceMemoryRateLimit(key: string, limit: number, windowMilliseconds: number) {
+  const now = Date.now();
+  const existing = requestWindows.get(key);
+
+  if (!existing || existing.resetsAt <= now) {
+    requestWindows.set(key, {
+      count: 1,
+      resetsAt: now + windowMilliseconds,
+    });
+  } else {
+    if (existing.count >= limit) {
+      throw new HttpsError('resource-exhausted', 'Request limit reached.');
+    }
+
+    existing.count += 1;
+  }
+
+  if (requestWindows.size > 5_000) {
+    for (const [storedKey, window] of requestWindows) {
+      if (window.resetsAt <= now) {
+        requestWindows.delete(storedKey);
+      }
+    }
+  }
+}
+
+async function enforceDailyFunctionLimit() {
+  const nowMilliseconds = Date.now();
+
+  if (dailyUsageBlockedUntil > nowMilliseconds) {
+    throw new HttpsError('resource-exhausted', 'Daily service limit reached.');
+  }
+
+  const now = Timestamp.fromMillis(nowMilliseconds);
+  const day = new Date(nowMilliseconds).toISOString().slice(0, 10);
+  const nextDay = getNextUtcDay(nowMilliseconds);
+  const reference = firestore.collection('functionDailyUsage').doc(day);
+
+  try {
+    await firestore.runTransaction(async (transaction) => {
+      const document = await transaction.get(reference);
+      const storedCount = getDocumentValue(document, 'count');
+      const count = typeof storedCount === 'number' ? storedCount : 0;
+
+      if (getDocumentValue(document, 'disabled') === true || count >= dailyFunctionLimit) {
+        dailyUsageBlockedUntil = nextDay;
+        throw new HttpsError('resource-exhausted', 'Daily service limit reached.');
+      }
+
+      transaction.set(
+        reference,
+        {
+          count: count + 1,
+          expiresAt: Timestamp.fromMillis(nextDay + 7 * 24 * 60 * 60 * 1_000),
+          updatedAt: now,
+        },
+        {
+          merge: true,
+        },
+      );
+    });
+  } catch (cause) {
+    if (cause instanceof HttpsError) {
+      await getDatabase().ref('service/enabledUntil').set(nowMilliseconds);
+      presenceServiceEnabledUntil = nowMilliseconds;
+      throw cause;
+    }
+
+    throw new HttpsError('unavailable', 'Request protection is temporarily unavailable.');
+  }
+
+  if (presenceServiceEnabledUntil < nowMilliseconds + presenceServiceLeaseMilliseconds / 2) {
+    presenceServiceEnabledUntil = nowMilliseconds + presenceServiceLeaseMilliseconds;
+    await getDatabase().ref('service/enabledUntil').set(presenceServiceEnabledUntil);
+  }
+}
+
+async function enforceRequestLimits(
+  operation: string,
+  uid: string,
+  ip: string | undefined,
+  userLimit: number,
+  ipLimit: number,
+) {
+  const now = Date.now();
+  const day = new Date(now).toISOString().slice(0, 10);
+
+  enforceMemoryRateLimit(`instance:${day}`, dailyFunctionLimit, getNextUtcDay(now) - now);
+  enforceMemoryRateLimit(`${operation}:uid:${uid}`, userLimit, requestLimitWindowMilliseconds);
+  enforceMemoryRateLimit(
+    `${operation}:ip:${ip ?? 'unknown'}`,
+    ipLimit,
+    requestLimitWindowMilliseconds,
+  );
+
+  await enforceDailyFunctionLimit();
+}
+
+export const createFriendRequest = onCall(
   {
-    region: 'europe-west1',
-    secrets: [twitchApiConfig],
+    ...functionRuntime,
+    cors: callableCors,
   },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Authentication is required.');
     }
 
-    await enforceLookupLimit(request.auth.uid);
+    await enforceRequestLimits('friend-mutation', request.auth.uid, request.rawRequest.ip, 10, 30);
+    await sendFriendRequest(request.auth.uid, getRequestedLogin(request.data));
 
-    return getTwitchUser(getRequestedLogin(request.data));
+    return {
+      success: true,
+    };
+  },
+);
+
+export const getFriends = onCall(
+  {
+    ...functionRuntime,
+    cors: callableCors,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication is required.');
+    }
+
+    await enforceRequestLimits('friend-read', request.auth.uid, request.rawRequest.ip, 60, 120);
+
+    return loadFriendState(request.auth.uid);
+  },
+);
+
+export const registerPublicIdentity = onCall(
+  {
+    ...functionRuntime,
+    cors: callableCors,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication is required.');
+    }
+
+    await enforceRequestLimits('identity', request.auth.uid, request.rawRequest.ip, 10, 30);
+
+    await firestore
+      .collection('publicIdentityKeys')
+      .doc(request.auth.uid)
+      .set({
+        encryptionKey: getPublicIdentityKey(request.data, 'encryptionKey'),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+    return {
+      success: true,
+    };
+  },
+);
+
+export const getPresenceFriends = onCall(
+  {
+    ...functionRuntime,
+    cors: callableCors,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication is required.');
+    }
+
+    await enforceRequestLimits('presence-friends', request.auth.uid, request.rawRequest.ip, 30, 90);
+
+    const state = await loadFriendState(request.auth.uid);
+    const friends = await Promise.all(
+      state.friends.map(async (friend) => {
+        const identity = await firestore.collection('publicIdentityKeys').doc(friend.id).get();
+        const encryptionKey = parseStoredPublicKey(getDocumentValue(identity, 'encryptionKey'));
+
+        return encryptionKey
+          ? {
+              encryptionKey,
+              id: friend.id,
+              profile: friend.profile,
+            }
+          : null;
+      }),
+    );
+
+    return friends.filter((friend) => friend !== null);
+  },
+);
+
+export const respondToFriendRequest = onCall(
+  {
+    ...functionRuntime,
+    cors: callableCors,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication is required.');
+    }
+
+    const input =
+      request.data && typeof request.data === 'object'
+        ? (request.data as Record<string, unknown>)
+        : {};
+
+    if (typeof input.accept !== 'boolean') {
+      throw new HttpsError('invalid-argument', 'Friend request response is required.');
+    }
+
+    await enforceRequestLimits('friend-mutation', request.auth.uid, request.rawRequest.ip, 10, 30);
+    await updateFriendRequest(request.auth.uid, getConnectionId(request.data), input.accept);
+
+    return {
+      success: true,
+    };
+  },
+);
+
+export const removeFriend = onCall(
+  {
+    ...functionRuntime,
+    cors: callableCors,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication is required.');
+    }
+
+    await enforceRequestLimits('friend-mutation', request.auth.uid, request.rawRequest.ip, 10, 30);
+    await removeFriendConnection(request.auth.uid, getConnectionId(request.data));
+
+    return {
+      success: true,
+    };
   },
 );
 
 export const startTwitchAuthorization = onCall(
   {
-    region: 'europe-west1',
+    ...functionRuntime,
+    cors: callableCors,
     secrets: [twitchApiConfig],
   },
   async (request) => {
@@ -224,6 +505,9 @@ export const startTwitchAuthorization = onCall(
 
     const uid = request.auth.uid;
     const callbackUri = getOAuthCallbackUri(request.data);
+
+    await enforceRequestLimits('oauth-start', request.auth.uid, request.rawRequest.ip, 6, 20);
+
     const now = Timestamp.now();
     const startReference = firestore.collection('oauthStarts').doc(uid);
     const state = randomBytes(32).toString('hex');
@@ -275,7 +559,7 @@ export const startTwitchAuthorization = onCall(
 
 export const twitchOAuthCallback = onRequest(
   {
-    region: 'europe-west1',
+    ...functionRuntime,
     secrets: [twitchApiConfig],
   },
   async (request, response) => {
@@ -283,12 +567,29 @@ export const twitchOAuthCallback = onRequest(
       response
         .status(success ? 200 : 400)
         .set('Cache-Control', 'no-store')
-        .set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'")
+        .set(
+          'Content-Security-Policy',
+          "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'",
+        )
+        .set('Cross-Origin-Opener-Policy', 'same-origin')
         .set('Content-Type', 'text/html; charset=utf-8')
+        .set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
         .set('Referrer-Policy', 'no-referrer')
         .set('X-Content-Type-Options', 'nosniff')
+        .set('X-Frame-Options', 'DENY')
         .send(createOAuthResultPage(success));
     };
+
+    if (request.method !== 'GET') {
+      response
+        .status(405)
+        .set('Allow', 'GET')
+        .set('Cache-Control', 'no-store')
+        .set('Content-Type', 'text/plain; charset=utf-8')
+        .send('Method Not Allowed');
+      return;
+    }
+
     const code = typeof request.query.code === 'string' ? request.query.code.trim() : '';
     const state = typeof request.query.state === 'string' ? request.query.state.trim() : '';
 
@@ -369,12 +670,15 @@ export const twitchOAuthCallback = onRequest(
 
 export const getMyTwitchProfile = onCall(
   {
-    region: 'europe-west1',
+    ...functionRuntime,
+    cors: callableCors,
   },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Authentication is required.');
     }
+
+    await enforceRequestLimits('profile-read', request.auth.uid, request.rawRequest.ip, 60, 120);
 
     const userProfile = await firestore.collection('userProfiles').doc(request.auth.uid).get();
     const login = getDocumentValue(userProfile, 'login');
@@ -384,30 +688,12 @@ export const getMyTwitchProfile = onCall(
     }
 
     const publicProfile = await firestore.collection('publicProfiles').doc(login).get();
+    const profile = publicProfile.data();
 
-    if (!publicProfile.exists) {
-      return null;
-    }
-
-    const avatarUrl = getDocumentValue(publicProfile, 'avatarUrl');
-    const displayName = getDocumentValue(publicProfile, 'displayName');
-    const id = getDocumentValue(publicProfile, 'id');
-    const publicLogin = getDocumentValue(publicProfile, 'login');
-
-    if (
-      typeof avatarUrl !== 'string' ||
-      typeof displayName !== 'string' ||
-      typeof id !== 'string' ||
-      typeof publicLogin !== 'string'
-    ) {
+    if (!isTwitchUser(profile)) {
       throw new HttpsError('data-loss', 'Stored Twitch profile is invalid.');
     }
 
-    return {
-      avatarUrl,
-      displayName,
-      id,
-      login: publicLogin,
-    };
+    return profile;
   },
 );

@@ -1,6 +1,39 @@
 {
   "rules": {
     ".read": false,
-    ".write": false
+    ".write": false,
+    "friendships": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$friendUid": {
+          ".write": false,
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "presence": {
+      "$recipientUid": {
+        ".read": "auth != null && auth.uid === $recipientUid && root.child('service').child('enabledUntil').val() > now",
+        "$senderUid": {
+          ".write": "auth != null && auth.uid === $senderUid && root.child('friendships').child($senderUid).child($recipientUid).val() === true && (!newData.exists() || root.child('service').child('enabledUntil').val() > now)",
+          ".validate": "!newData.exists() || newData.hasChildren(['ciphertext', 'expiresAt', 'iv', 'version'])",
+          "ciphertext": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{16,512}$/)"
+          },
+          "expiresAt": {
+            ".validate": "newData.isNumber() && newData.val() > now && newData.val() <= now + 120000"
+          },
+          "iv": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{16}$/)"
+          },
+          "version": {
+            ".validate": "newData.val() === 1"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
   }
 }

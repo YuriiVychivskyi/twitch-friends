@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   assertFails,
+  assertSucceeds,
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
@@ -60,5 +61,47 @@ describe('fail-closed Firebase rules', () => {
 
     await assertFails(get(reference));
     await assertFails(set(reference, { value: 'blocked' }));
+  });
+
+  it('allows encrypted presence only between friends', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'service/enabledUntil'), Date.now() + 60_000);
+      await set(ref(context.database(), 'friendships/alice/bob'), true);
+    });
+
+    const alice = testEnvironment.authenticatedContext('alice');
+    const bob = testEnvironment.authenticatedContext('bob');
+    const charlie = testEnvironment.authenticatedContext('charlie');
+    const presence = {
+      ciphertext: 'encryptedPayload',
+      expiresAt: Date.now() + 60_000,
+      iv: 'abcdefghijklmnop',
+      version: 1,
+    };
+    const reference = ref(alice.database(), 'presence/bob/alice');
+
+    await assertSucceeds(set(reference, presence));
+    await assertSucceeds(get(ref(bob.database(), 'presence/bob')));
+    await assertFails(get(ref(charlie.database(), 'presence/bob')));
+    await assertFails(set(ref(charlie.database(), 'presence/bob/charlie'), presence));
+  });
+
+  it('denies presence when the daily service window is closed', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'service/enabledUntil'), Date.now() - 1);
+      await set(ref(context.database(), 'friendships/alice/bob'), true);
+    });
+
+    const alice = testEnvironment.authenticatedContext('alice');
+    const bob = testEnvironment.authenticatedContext('bob');
+    const presence = {
+      ciphertext: 'encryptedPayload',
+      expiresAt: Date.now() + 60_000,
+      iv: 'abcdefghijklmnop',
+      version: 1,
+    };
+
+    await assertFails(set(ref(alice.database(), 'presence/bob/alice'), presence));
+    await assertFails(get(ref(bob.database(), 'presence/bob')));
   });
 });
