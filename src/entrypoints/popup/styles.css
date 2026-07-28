@@ -152,6 +152,13 @@ body {
   gap: 10px;
 }
 
+.friends-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .profile-panel {
   display: grid;
   gap: 10px;
@@ -258,6 +265,18 @@ body {
   list-style: none;
 }
 
+.friend-group {
+  display: grid;
+  gap: 6px;
+}
+
+.friend-group__title {
+  margin: 0;
+  color: #adadb8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .friend-list__login,
 .friend-list__status {
   display: block;
@@ -275,6 +294,28 @@ body {
   background: transparent;
   font-size: 12px;
   cursor: pointer;
+}
+
+.friend-list__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.friend-list__accept {
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 8px;
+  color: #fff;
+  background: #9147ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.friend-list__accept:disabled,
+.friend-list__remove:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .friend-list__remove:hover {

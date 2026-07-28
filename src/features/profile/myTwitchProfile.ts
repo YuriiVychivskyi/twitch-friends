@@ -1,7 +1,7 @@
 import { FirebaseError } from 'firebase/app';
 import { httpsCallable } from 'firebase/functions';
 
-import { isTwitchUserProfile, type TwitchUserProfile } from '@/features/friends/twitchUserLookup';
+import { isTwitchUserProfile, type TwitchUserProfile } from '@/features/friends/twitchUserProfile';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import { getFirebaseFunctions } from '@/infrastructure/firebase/firebaseFunctions';
 

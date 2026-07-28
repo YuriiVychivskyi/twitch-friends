@@ -1,31 +1,49 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import {
-  addLocalFriend,
-  getLocalFriends,
-  removeLocalFriend,
-  type LocalFriend,
-} from '@/features/friends/localFriends';
-import { lookupTwitchUser } from '@/features/friends/twitchUserLookup';
+  createFriendRequest,
+  getFriendState,
+  removeFriendConnection,
+  respondToFriendRequest,
+  type FriendConnection,
+  type FriendState,
+} from '@/features/friends/friendConnections';
+import { replaceLocalFriends } from '@/features/friends/localFriends';
+
+const emptyState: FriendState = {
+  friends: [],
+  incoming: [],
+  outgoing: [],
+};
 
 export function FriendsPanel() {
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [friends, setFriends] = useState<LocalFriend[]>([]);
+  const [friendState, setFriendState] = useState(emptyState);
   const [login, setLogin] = useState('');
   const [ready, setReady] = useState(false);
+
+  const loadFriends = async () => {
+    const nextState = await getFriendState();
+
+    await replaceLocalFriends(nextState.friends.map((friend) => friend.profile));
+    setFriendState(nextState);
+  };
 
   useEffect(() => {
     let active = true;
 
-    void getLocalFriends()
-      .then((storedFriends) => {
+    void getFriendState()
+      .then(async (nextState) => {
+        await replaceLocalFriends(nextState.friends.map((friend) => friend.profile));
+
         if (active) {
-          setFriends(storedFriends);
+          setFriendState(nextState);
         }
       })
-      .catch(() => {
+      .catch((cause: unknown) => {
         if (active) {
-          setError('Could not load friends.');
+          setError(cause instanceof Error ? cause.message : 'Could not load friends.');
         }
       })
       .finally(() => {
@@ -39,46 +57,54 @@ export function FriendsPanel() {
     };
   }, []);
 
-  const addFriend = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const runAction = async (action: () => Promise<void>) => {
+    setBusy(true);
     setError('');
 
     try {
-      const profile = await lookupTwitchUser(login);
-
-      if (!profile) {
-        setError('Twitch user not found.');
-        return;
-      }
-
-      await addLocalFriend(profile);
-      setFriends(await getLocalFriends());
-      setLogin('');
+      await action();
+      await loadFriends();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not add friend.');
+      setError(cause instanceof Error ? cause.message : 'Friend action failed.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const removeFriend = async (friendLogin: string) => {
-    setError('');
+  const sendRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    try {
-      await removeLocalFriend(friendLogin);
-      setFriends((currentFriends) =>
-        currentFriends.filter((friend) => friend.login !== friendLogin),
-      );
-    } catch {
-      setError('Could not remove friend.');
-    }
+    await runAction(async () => {
+      await createFriendRequest(login);
+      setLogin('');
+    });
+  };
+
+  const respond = async (friend: FriendConnection, accept: boolean) => {
+    await runAction(() => respondToFriendRequest(friend.id, accept));
+  };
+
+  const remove = async (friend: FriendConnection) => {
+    await runAction(() => removeFriendConnection(friend.id));
   };
 
   return (
     <section className="friends-panel" aria-labelledby="friends-title">
-      <h2 className="friends-panel__title" id="friends-title">
-        Friends
-      </h2>
+      <div className="friends-panel__heading">
+        <h2 className="friends-panel__title" id="friends-title">
+          Friends
+        </h2>
+        <button
+          className="friend-list__remove"
+          disabled={!ready || busy}
+          type="button"
+          onClick={() => void runAction(() => Promise.resolve())}
+        >
+          Refresh
+        </button>
+      </div>
 
-      <form className="friend-form" onSubmit={(event) => void addFriend(event)}>
+      <form className="friend-form" onSubmit={(event) => void sendRequest(event)}>
         <input
           className="friend-form__input"
           aria-label="Twitch login"
@@ -87,8 +113,12 @@ export function FriendsPanel() {
           value={login}
           onChange={(event) => setLogin(event.target.value)}
         />
-        <button className="friend-form__button" disabled={!ready || !login.trim()} type="submit">
-          Add
+        <button
+          className="friend-form__button"
+          disabled={!ready || busy || !login.trim()}
+          type="submit"
+        >
+          Send
         </button>
       </form>
 
@@ -98,28 +128,87 @@ export function FriendsPanel() {
         </p>
       ) : null}
 
-      {friends.length > 0 ? (
+      {friendState.incoming.length > 0 ? (
+        <div className="friend-group">
+          <h3 className="friend-group__title">Requests</h3>
+          <ul className="friend-list status-list">
+            {friendState.incoming.map((friend) => (
+              <li className="status-row" key={friend.id}>
+                <span className="friend-list__login">{friend.profile.displayName}</span>
+                <span className="friend-list__actions">
+                  <button
+                    className="friend-list__accept"
+                    disabled={busy}
+                    type="button"
+                    onClick={() => void respond(friend, true)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="friend-list__remove"
+                    disabled={busy}
+                    type="button"
+                    onClick={() => void respond(friend, false)}
+                  >
+                    Decline
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {friendState.friends.length > 0 ? (
         <ul className="friend-list status-list">
-          {friends.map((friend) => (
-            <li className="status-row" key={friend.login}>
+          {friendState.friends.map((friend) => (
+            <li className="status-row" key={friend.id}>
               <div>
-                <span className="friend-list__login">{friend.displayName}</span>
-                <span className="friend-list__status">Unavailable</span>
+                <span className="friend-list__login">{friend.profile.displayName}</span>
+                <span className="friend-list__status">Friend</span>
               </div>
               <button
                 className="friend-list__remove"
-                aria-label={`Remove ${friend.login}`}
+                disabled={busy}
                 type="button"
-                onClick={() => void removeFriend(friend.login)}
+                onClick={() => void remove(friend)}
               >
                 Remove
               </button>
             </li>
           ))}
         </ul>
-      ) : (
+      ) : null}
+
+      {friendState.outgoing.length > 0 ? (
+        <div className="friend-group">
+          <h3 className="friend-group__title">Sent requests</h3>
+          <ul className="friend-list status-list">
+            {friendState.outgoing.map((friend) => (
+              <li className="status-row" key={friend.id}>
+                <div>
+                  <span className="friend-list__login">{friend.profile.displayName}</span>
+                  <span className="friend-list__status">Pending</span>
+                </div>
+                <button
+                  className="friend-list__remove"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void remove(friend)}
+                >
+                  Cancel
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {friendState.friends.length === 0 &&
+      friendState.incoming.length === 0 &&
+      friendState.outgoing.length === 0 ? (
         <p className="friends-panel__empty">No friends added</p>
-      )}
+      ) : null}
     </section>
   );
 }

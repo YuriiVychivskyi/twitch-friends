@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { getMyTwitchProfile } from '@/features/profile/myTwitchProfile';
-import { type TwitchUserProfile } from '@/features/friends/twitchUserLookup';
+import { type TwitchUserProfile } from '@/features/friends/twitchUserProfile';
 import { authorizeWithTwitch } from '@/features/profile/twitchAuthorization';
 
 export function ProfilePanel() {
