@@ -3,8 +3,8 @@
 A browser extension that adds a small friends section to the Twitch sidebar. The goal is to let
 trusted friends share which live channel they are watching without collecting viewing history.
 
-The project is currently in early development. The extension shell, Twitch sidebar mount, local
-identity, Firebase emulator setup, and fail-closed database rules are working.
+The project is currently being prepared for a closed beta. Friend connections, encrypted presence,
+the Twitch sidebar integration, and the local Firebase development workflow are working.
 
 ## Current state
 
@@ -105,5 +105,16 @@ The local secret uses this shape:
 ```json
 TWITCH_API_CONFIG={"clientId":"...","clientSecret":"...","oauthRedirectUris":["http://localhost:5001/demo-twitch-friends/europe-west1/twitchOAuthCallback"]}
 ```
+
+## Closed beta
+
+Beta access will be provided to approved testers. Feedback and bug reports are welcome through the
+contact options below.
+
+## Contact
+
+- Twitch: [LIVAY1337](https://www.twitch.tv/livay1337)
+- Telegram: [@vychivsky](https://t.me/vychivsky)
+- Email: [yuravychivskii@gmail.com](mailto:yuravychivskii@gmail.com)
 
 Twitch Friends is an independent project and is not affiliated with Twitch Interactive, Inc.
