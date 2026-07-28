@@ -4,7 +4,10 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: 'src',
   manifest: ({ browser, manifestVersion }) => {
-    const firebaseHosts = ['http://127.0.0.1/*', 'https://*.cloudfunctions.net/*'];
+    const firebaseHosts = [
+      'http://127.0.0.1/*',
+      'https://europe-west1-demo-twitch-friends.cloudfunctions.net/*',
+    ];
 
     return {
       name: 'Twitch Friends',

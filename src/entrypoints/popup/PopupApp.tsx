@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 
 import { FriendsPanel } from '@/features/friends/FriendsPanel';
+import { ProfilePanel } from '@/features/profile/ProfilePanel';
 import { getPrivacySettings, setPresenceSharingEnabled } from '@/features/privacy/privacySettings';
 import {
   ACTIVE_CHANNEL_GET,
@@ -178,6 +179,8 @@ export function PopupApp() {
           </span>
         </div>
       </section>
+
+      <ProfilePanel />
 
       <section className="privacy-setting" aria-labelledby="presence-sharing-label">
         <div>

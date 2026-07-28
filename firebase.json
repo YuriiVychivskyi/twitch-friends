@@ -21,6 +21,7 @@
       "port": 8080
     },
     "functions": {
+      "host": "::",
       "port": 5001
     },
     "ui": {
