@@ -65,7 +65,7 @@ describe('presence encryption', () => {
     await expect(
       decryptPresence(recipient, sender.encryptionPublicKey, {
         ...encrypted,
-        ciphertext: `${encrypted.ciphertext.slice(0, -1)}a`,
+        ciphertext: `${encrypted.ciphertext.startsWith('A') ? 'B' : 'A'}${encrypted.ciphertext.slice(1)}`,
       }),
     ).resolves.toBe(null);
     await expect(
