@@ -228,7 +228,7 @@ async function handleApiRequest(request: Request, env: Env) {
   }
 
   if (path === '/api/friends/requests' && request.method === 'POST') {
-    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 10, 30);
+    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 30, 90);
 
     const body = await readJson(request);
     const login = normalizeLogin(
@@ -240,7 +240,7 @@ async function handleApiRequest(request: Request, env: Env) {
   }
 
   if (path === '/api/friends/respond' && request.method === 'POST') {
-    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 10, 30);
+    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 30, 90);
 
     const body = await readJson(request);
     const input = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
@@ -259,7 +259,7 @@ async function handleApiRequest(request: Request, env: Env) {
   }
 
   if (path.startsWith('/api/friends/') && request.method === 'DELETE') {
-    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 10, 30);
+    await enforceRequestLimits(env.DB, 'friend-mutation', identity.uid, ip, 30, 90);
 
     const connectionId = validateConnectionId(
       decodeURIComponent(path.slice('/api/friends/'.length)),

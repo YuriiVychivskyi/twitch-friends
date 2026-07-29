@@ -1,6 +1,6 @@
 import { ApiError } from './errors';
 
-const dailyLimit = 5_000;
+const dailyLimit = 10_000;
 const hourMilliseconds = 60 * 60 * 1_000;
 
 async function consumeLimit(database: D1Database, key: string, limit: number, resetsAt: number) {
