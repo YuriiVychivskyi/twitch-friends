@@ -52,7 +52,10 @@ async function loadOrCreateLocalIdentity() {
 }
 
 export function getOrCreateLocalIdentity() {
-  identityPromise ??= loadOrCreateLocalIdentity();
+  identityPromise ??= loadOrCreateLocalIdentity().catch((cause: unknown) => {
+    identityPromise = null;
+    throw cause;
+  });
 
   return identityPromise;
 }

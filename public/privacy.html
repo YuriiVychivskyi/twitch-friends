@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Twitch Friends Privacy Notice</title>
+    <link rel="stylesheet" href="legal.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Privacy Notice</h1>
+      <p class="meta">Twitch Friends · Effective 29 July 2026</p>
+
+      <h2>What the extension processes</h2>
+      <ul>
+        <li>Your Twitch user ID, login, display name, and profile image.</li>
+        <li>An anonymous Firebase identifier.</li>
+        <li>Friend requests, accepted friendships, and your public encryption key.</li>
+        <li>Short-lived presence encrypted separately for each accepted friend.</li>
+        <li>
+          Limited security and rate-limit data, including an IP address in hourly request counters.
+        </li>
+      </ul>
+
+      <h2>What is not collected</h2>
+      <p>
+        Twitch Friends does not collect cookies, advertising identifiers, messages, email addresses,
+        or general browsing history. It detects a Twitch channel only to provide the friend-presence
+        feature. Private encryption keys stay in extension-owned IndexedDB on your device.
+      </p>
+
+      <h2>Twitch authorization</h2>
+      <p>
+        Twitch access and refresh tokens are processed briefly by the Cloudflare Worker to verify
+        account ownership. They are not persisted and are revoked after verification.
+      </p>
+
+      <h2>Storage and retention</h2>
+      <p>
+        Profile and friendship metadata remain until you disconnect Twitch or choose Delete my data.
+        Encrypted presence expires within two minutes and is not retained as viewing history. OAuth
+        state expires after ten minutes. Operational rate-limit records are deleted automatically.
+      </p>
+
+      <h2>Service providers</h2>
+      <p>
+        Cloudflare provides the API and D1 database. Firebase provides anonymous authentication and
+        encrypted presence delivery. Twitch provides OAuth and profile verification. These providers
+        may process technical request data under their own policies.
+      </p>
+
+      <h2>Your controls</h2>
+      <p>
+        Disconnect Twitch removes your server profile, friendship data, public key, and shared
+        presence. Delete my data also removes the anonymous Firebase account and local extension
+        data.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions or deletion requests can be sent to
+        <a href="mailto:yuravychivskii@gmail.com">yuravychivskii@gmail.com</a> or
+        <a href="https://t.me/vychivsky">@vychivsky</a>.
+      </p>
+    </main>
+  </body>
+</html>

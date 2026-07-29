@@ -10,6 +10,10 @@ import {
   startPresenceSync,
   updatePresenceChannel,
 } from '@/features/presence/presenceSync';
+import {
+  isPrivacyConsentAccepted,
+  isPrivacyConsentAcceptedMessage,
+} from '@/features/privacy/privacyConsent';
 import { isAccountSetupRequired } from '@/features/profile/accountState';
 import {
   getMyTwitchProfile,
@@ -76,6 +80,21 @@ async function initializeBackground() {
     });
   }
 
+  if (!(await isPrivacyConsentAccepted())) {
+    setRuntimeStatus({
+      firebaseAuth: 'inactive',
+      localIdentity: 'inactive',
+      privateKeys: 'inactive',
+    });
+    return;
+  }
+
+  setRuntimeStatus({
+    firebaseAuth: 'pending',
+    localIdentity: 'pending',
+    privateKeys: 'pending',
+  });
+
   if (await isAccountSetupRequired()) {
     setRuntimeStatus({
       firebaseAuth: 'inactive',
@@ -97,6 +116,21 @@ async function initializeBackground() {
     return;
   }
 
+  try {
+    const identity = await getOrCreateLocalIdentity();
+
+    setRuntimeStatus({
+      localIdentity: 'ready',
+      privateKeys: identity.encryptionPrivateKey.extractable ? 'unavailable' : 'ready',
+    });
+  } catch {
+    setRuntimeStatus({
+      localIdentity: 'unavailable',
+      privateKeys: 'unavailable',
+    });
+    return;
+  }
+
   await startPresenceIfConnected();
 }
 
@@ -110,27 +144,13 @@ function startPresenceIfConnected() {
       const profile = await getMyTwitchProfile();
 
       if (!profile) {
-        setRuntimeStatus({
-          localIdentity: 'inactive',
-          privateKeys: 'inactive',
-        });
         return;
       }
 
-      const identity = await getOrCreateLocalIdentity();
-      const privateKeysProtected = !identity.encryptionPrivateKey.extractable;
-
-      setRuntimeStatus({
-        localIdentity: 'ready',
-        privateKeys: privateKeysProtected ? 'ready' : 'unavailable',
-      });
       await startPresenceSync(activeChannel);
       presenceStarted = true;
     } catch {
-      setRuntimeStatus({
-        localIdentity: 'unavailable',
-        privateKeys: 'unavailable',
-      });
+      return;
     }
   })().finally(() => {
     presenceStartPromise = null;
@@ -138,7 +158,6 @@ function startPresenceIfConnected() {
 
   return presenceStartPromise;
 }
-
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (sender.id !== browser.runtime.id) {
@@ -163,6 +182,8 @@ export default defineBackground(() => {
       sendResponse(activeChannel);
     } else if (isRuntimeStatusRequest(message)) {
       sendResponse(getRuntimeStatus());
+    } else if (isPrivacyConsentAcceptedMessage(message)) {
+      void initializeBackground();
     } else if (isTwitchProfileConnectedMessage(message)) {
       void startPresenceIfConnected();
     }

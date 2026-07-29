@@ -17,6 +17,7 @@ ownership verification, account cleanup, and the Twitch sidebar integration are 
 - Twitch profiles, friendship metadata, and public keys stored in Cloudflare D1
 - Anonymous Firebase Authentication and Realtime Database presence delivery
 - Popup actions for disconnecting Twitch and deleting account data
+- First-run disclosure and versioned acceptance of the Privacy Notice and Beta Terms
 - Exact extension-origin CORS, Firebase token verification, and bounded API rate limits
 - Local Firebase Emulator Suite and Cloudflare Worker development workflow
 
@@ -71,6 +72,8 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 ## Privacy
 
 - The extension does not read Twitch cookies, credentials, or page storage.
+- Channel detection, Firebase, and backend services do not start until the user accepts the in-product disclosure.
+- The extension does not use cookies; consent covers the required local storage and data processing.
 - Viewing history is not collected.
 - Twitch tokens are revoked after ownership verification and are never persisted.
 - Private identity keys are generated and stored locally.
@@ -117,6 +120,11 @@ moz-extension:// origin is not included in the production CORS allowlist yet.
 
 Beta access will be provided to approved testers. Feedback and bug reports are welcome through the
 contact options below.
+
+## Policies
+
+- [Privacy Notice](public/privacy.html)
+- [Beta Terms](public/terms.html)
 
 ## Contact
 

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 
 import { FriendsPanel } from '@/features/friends/FriendsPanel';
+import { ConsentPanel } from '@/features/privacy/ConsentPanel';
+import { isPrivacyConsentAccepted } from '@/features/privacy/privacyConsent';
 import { ProfilePanel } from '@/features/profile/ProfilePanel';
 import {
   ACTIVE_CHANNEL_GET,
@@ -37,12 +39,52 @@ function healthText(item: StatusItem) {
   return 'Checking';
 }
 
-export function PopupApp() {
-  const [activeChannel, setActiveChannel] = useState<TwitchChannel | null>(null);
-  const [status, setStatus] = useState<RuntimeStatus | null>(null);
+function PopupHeader() {
   const version = browser.runtime.getManifest().version;
 
+  return (
+    <header className="popup__header">
+      <p className="popup__eyebrow">Security status</p>
+      <div className="popup__title-row">
+        <h1 className="popup__title">Twitch Friends</h1>
+        <span className="popup__version">Beta v{version}</span>
+      </div>
+      <a
+        className="popup__author"
+        href="https://www.twitch.tv/livay1337"
+        rel="noreferrer"
+        target="_blank"
+      >
+        by LIVAY1337
+      </a>
+    </header>
+  );
+}
+
+export function PopupApp() {
+  const [activeChannel, setActiveChannel] = useState<TwitchChannel | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<RuntimeStatus | null>(null);
+
   useEffect(() => {
+    let active = true;
+
+    void isPrivacyConsentAccepted().then((accepted) => {
+      if (active) {
+        setConsentAccepted(accepted);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (consentAccepted !== true) {
+      return;
+    }
+
     let active = true;
 
     const loadStatus = async () => {
@@ -87,7 +129,20 @@ export function PopupApp() {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [consentAccepted]);
+
+  if (consentAccepted !== true) {
+    return (
+      <main className="popup">
+        <PopupHeader />
+        {consentAccepted === false ? (
+          <ConsentPanel onAccepted={() => setConsentAccepted(true)} />
+        ) : (
+          <p className="popup__privacy">Checking privacy settings…</p>
+        )}
+      </main>
+    );
+  }
 
   const items: StatusItem[] = [
     {
@@ -106,24 +161,12 @@ export function PopupApp() {
       readyText: 'Connected',
     },
   ];
+  const privacyUrl = browser.runtime.getURL('/privacy.html');
+  const termsUrl = browser.runtime.getURL('/terms.html');
 
   return (
     <main className="popup">
-      <header className="popup__header">
-        <p className="popup__eyebrow">Security status</p>
-        <div className="popup__title-row">
-          <h1 className="popup__title">Twitch Friends</h1>
-          <span className="popup__version">Beta v{version}</span>
-        </div>
-        <a
-          className="popup__author"
-          href="https://www.twitch.tv/livay1337"
-          rel="noreferrer"
-          target="_blank"
-        >
-          by LIVAY1337
-        </a>
-      </header>
+      <PopupHeader />
 
       <section className="status-list" aria-label="Security status">
         {items.map((item) => (
@@ -157,7 +200,16 @@ export function PopupApp() {
 
       <FriendsPanel />
 
-      <p className="popup__privacy">Viewing history is not collected or stored.</p>
+      <p className="popup__privacy">
+        Viewing history and cookies are not collected.{' '}
+        <a href={privacyUrl} rel="noreferrer" target="_blank">
+          Privacy
+        </a>{' '}
+        ·{' '}
+        <a href={termsUrl} rel="noreferrer" target="_blank">
+          Terms
+        </a>
+      </p>
     </main>
   );
 }

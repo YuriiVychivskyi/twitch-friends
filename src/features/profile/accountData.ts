@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { isAccountSetupRequired, requireAccountSetup } from '@/features/profile/accountState';
+import { acceptPrivacyConsent } from '@/features/privacy/privacyConsent';
 import { clearRealtimeAccountData } from '@/features/presence/friendshipEdges';
 import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
 import { deleteFirebaseAccount } from '@/infrastructure/firebase/firebaseAuth';
@@ -55,6 +56,7 @@ async function callAccountAction(name: 'deleteMyData' | 'disconnectTwitch') {
 export async function disconnectTwitch() {
   await callAccountAction('disconnectTwitch');
   await browser.storage.local.clear();
+  await acceptPrivacyConsent();
   browser.runtime.reload();
 }
 

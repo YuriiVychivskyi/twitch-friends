@@ -8,6 +8,7 @@
 - Restrict every remote read and write to the smallest required path.
 - Reject access by default and bound unauthenticated and authenticated work.
 - Support complete server and local data cleanup.
+- Require a prominent in-product disclosure before starting remote data services.
 
 ## Trust boundaries
 
@@ -30,6 +31,7 @@
 | --------------------------- | -------------------------------- | ------------------------------- |
 | Private ECDH key            | Extension IndexedDB              | Until Delete my data            |
 | Local settings and UI cache | Extension local storage          | Until disconnect or deletion    |
+| Privacy consent version     | Extension local storage          | Until deletion or policy update |
 | Firebase installation UID   | Firebase Authentication          | Until Delete my data            |
 | Twitch profile mapping      | Cloudflare D1                    | Until disconnect or deletion    |
 | Friend requests/friendships | Cloudflare D1                    | Until removal or deletion       |
@@ -38,6 +40,18 @@
 | Rate-limit counters         | Cloudflare D1                    | Bounded keys and daily counters |
 | Current viewing presence    | Realtime Database, encrypted     | Approximately one minute        |
 | Viewing history             | Nowhere                          | Never created                   |
+
+## Consent and disclosure
+
+On first run, the popup prominently describes the Twitch profile, anonymous identifier, friendship,
+public-key, and encrypted-presence processing. Firebase Authentication and backend requests do not
+start until the user explicitly checks acceptance and continues. Acceptance is stored with a policy
+version so a future material policy change can require consent again.
+
+Channel detection, sidebar injection, Firebase Authentication, and backend requests remain disabled
+until acceptance. The extension does not use cookies. The disclosure covers extension local storage, IndexedDB, and
+remote processing. Privacy Notice and Beta Terms pages are bundled locally and remain available from
+the popup after acceptance.
 
 ## Identity and authentication
 
@@ -91,6 +105,9 @@ uses `onDisconnect` cleanup. It never persists plaintext viewing history.
 ## API controls
 
 - CORS uses the exact production Chrome extension origin.
+- If Chrome omits `Origin` on an extension request, a runtime-generated extension-origin header is
+  accepted only when the standard `Origin` is absent or `null`; a hostile non-null `Origin` cannot
+  be overridden.
 - CORS is defense in depth; authentication and authorization do not depend on Origin alone.
 - Request bodies are streamed and rejected above 4 KiB.
 - Network calls to Twitch have ten-second timeouts.
