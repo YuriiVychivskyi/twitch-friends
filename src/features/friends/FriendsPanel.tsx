@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { browser } from 'wxt/browser';
 
 import {
   createFriendRequest,
@@ -9,6 +10,7 @@ import {
   type FriendState,
 } from '@/features/friends/friendConnections';
 import { replaceLocalFriends } from '@/features/friends/localFriends';
+import { PRESENCE_FRIENDS_REFRESH } from '@/features/presence/presenceMessages';
 
 const emptyState: FriendState = {
   friends: [],
@@ -27,6 +29,9 @@ export function FriendsPanel() {
     const nextState = await getFriendState();
 
     await replaceLocalFriends(nextState.friends.map((friend) => friend.profile));
+    await browser.runtime.sendMessage({
+      type: PRESENCE_FRIENDS_REFRESH,
+    });
     setFriendState(nextState);
   };
 
@@ -36,6 +41,9 @@ export function FriendsPanel() {
     void getFriendState()
       .then(async (nextState) => {
         await replaceLocalFriends(nextState.friends.map((friend) => friend.profile));
+        await browser.runtime.sendMessage({
+          type: PRESENCE_FRIENDS_REFRESH,
+        });
 
         if (active) {
           setFriendState(nextState);

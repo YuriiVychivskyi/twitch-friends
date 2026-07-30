@@ -10,6 +10,7 @@ import {
   startPresenceSync,
   updatePresenceChannel,
 } from '@/features/presence/presenceSync';
+import { isPresenceFriendsRefreshMessage } from '@/features/presence/presenceMessages';
 import {
   isPrivacyConsentAccepted,
   isPrivacyConsentAcceptedMessage,
@@ -33,6 +34,12 @@ let activeTabId: number | null = null;
 let presenceStarted = false;
 let presenceStartPromise: Promise<void> | null = null;
 const tabChannels = new Map<number, TwitchChannel | null>();
+
+function reportPresenceError(action: string, cause: unknown) {
+  const message = cause instanceof Error ? cause.message : 'Unknown error';
+
+  console.error(`[Twitch Friends] ${action}: ${message}`);
+}
 
 function selectChannel(tabId: number, channel: TwitchChannel) {
   const unchanged =
@@ -149,7 +156,8 @@ function startPresenceIfConnected() {
 
       await startPresenceSync(activeChannel);
       presenceStarted = true;
-    } catch {
+    } catch (cause) {
+      reportPresenceError('Presence could not start', cause);
       return;
     }
   })().finally(() => {
@@ -186,6 +194,10 @@ export default defineBackground(() => {
       void initializeBackground();
     } else if (isTwitchProfileConnectedMessage(message)) {
       void startPresenceIfConnected();
+    } else if (isPresenceFriendsRefreshMessage(message)) {
+      void refreshPresenceFriends().catch((cause: unknown) => {
+        reportPresenceError('Friends presence could not refresh', cause);
+      });
     }
 
     return false;
@@ -193,7 +205,9 @@ export default defineBackground(() => {
 
   browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes[LOCAL_FRIENDS_KEY]) {
-      refreshPresenceFriends();
+      void refreshPresenceFriends().catch((cause: unknown) => {
+        reportPresenceError('Friends presence could not refresh', cause);
+      });
     }
   });
 

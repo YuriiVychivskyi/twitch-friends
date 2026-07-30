@@ -9,7 +9,7 @@ import {
 import { saveFriendPresence, type FriendPresence } from '@/features/presence/friendPresence';
 import { syncFriendshipEdges } from '@/features/presence/friendshipEdges';
 import { type TwitchChannel } from '@/features/presence/twitchChannel';
-import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
+import { requestBackend } from '@/infrastructure/backend/backendApi';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import { getFirebaseDatabase } from '@/infrastructure/firebase/firebaseDatabase';
 import { getOrCreateLocalIdentity } from '@/security/identity/localIdentity';
@@ -29,12 +29,20 @@ let presencePublishTimer: ReturnType<typeof setTimeout> | null = null;
 let publishedRecipients = new Set<string>();
 let presenceRevision = 0;
 let publishQueue = Promise.resolve();
+let refreshPromise: Promise<void> | null = null;
+let timersStarted = false;
 let unsubscribePresence: Unsubscribe | null = null;
 let uid = '';
 
 const presencePublishInterval = 30_000;
 const presencePublishDelay = 3_000;
 const presenceServiceRefreshInterval = 45 * 60_000;
+
+function reportPresenceError(action: string, cause: unknown) {
+  const message = cause instanceof Error ? cause.message : 'Unknown error';
+
+  console.error(`[Twitch Friends] ${action}: ${message}`);
+}
 
 function parsePublicKey(value: unknown): PublicIdentityKey | null {
   if (!value || typeof value !== 'object') {
@@ -167,7 +175,7 @@ async function publishPresence() {
   const database = getFirebaseDatabase();
   const nextRecipients = new Set(friends.map((friend) => friend.id));
 
-  await Promise.all(
+  const publishResults = await Promise.allSettled(
     friends.map(async (friend) => {
       if (!identity || !activeChannel) {
         return;
@@ -180,12 +188,18 @@ async function publishPresence() {
       await set(reference, encrypted);
     }),
   );
-  await Promise.all(
+  const removalResults = await Promise.allSettled(
     [...publishedRecipients]
       .filter((recipientUid) => !nextRecipients.has(recipientUid))
       .map((recipientUid) => remove(ref(database, `presence/${recipientUid}/${uid}`))),
   );
   publishedRecipients = nextRecipients;
+
+  for (const result of [...publishResults, ...removalResults]) {
+    if (result.status === 'rejected') {
+      reportPresenceError('Presence update failed', result.reason);
+    }
+  }
 }
 
 function queuePresencePublish() {
@@ -296,15 +310,27 @@ function listenForPresence() {
 }
 
 async function refreshPresenceState() {
-  try {
-    await refreshFriends();
-    listenForPresence();
-    await queuePresencePublish();
-  } catch (cause) {
-    if (!(cause instanceof BackendError)) {
-      throw cause;
-    }
+  await refreshFriends();
+  listenForPresence();
+  await queuePresencePublish();
+}
+
+function startPresenceTimers() {
+  if (timersStarted) {
+    return;
   }
+
+  timersStarted = true;
+  globalThis.setInterval(() => {
+    void queuePresencePublish().catch((cause: unknown) => {
+      reportPresenceError('Presence heartbeat failed', cause);
+    });
+  }, presencePublishInterval);
+  globalThis.setInterval(() => {
+    void refreshPresenceFriends().catch((cause: unknown) => {
+      reportPresenceError('Presence service refresh failed', cause);
+    });
+  }, presenceServiceRefreshInterval);
 }
 
 export async function startPresenceSync(channel: TwitchChannel | null) {
@@ -313,14 +339,8 @@ export async function startPresenceSync(channel: TwitchChannel | null) {
   identity = await getOrCreateLocalIdentity();
 
   await registerIdentity(identity);
+  startPresenceTimers();
   await refreshPresenceState();
-
-  globalThis.setInterval(() => {
-    void queuePresencePublish().catch(() => undefined);
-  }, presencePublishInterval);
-  globalThis.setInterval(() => {
-    void refreshPresenceState().catch(() => undefined);
-  }, presenceServiceRefreshInterval);
 }
 
 export function updatePresenceChannel(channel: TwitchChannel | null) {
@@ -332,10 +352,16 @@ export function updatePresenceChannel(channel: TwitchChannel | null) {
 
   presencePublishTimer = setTimeout(() => {
     presencePublishTimer = null;
-    void queuePresencePublish().catch(() => undefined);
+    void queuePresencePublish().catch((cause: unknown) => {
+      reportPresenceError('Presence channel update failed', cause);
+    });
   }, presencePublishDelay);
 }
 
 export function refreshPresenceFriends() {
-  void refreshPresenceState().catch(() => undefined);
+  refreshPromise ??= refreshPresenceState().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 }
