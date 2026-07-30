@@ -121,6 +121,10 @@ moz-extension:// origin is not included in the production CORS allowlist yet.
 Beta access will be provided to approved testers. Feedback and bug reports are welcome through the
 contact options below.
 
+## Next version
+
+- Batch encrypted presence updates into one Firebase request instead of one request per friend.
+
 ## Policies
 
 - [Privacy Notice](public/privacy.html)
