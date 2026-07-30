@@ -3,6 +3,11 @@
   "name": "twitch-friends-api",
   "main": "worker/src/index.ts",
   "compatibility_date": "2026-07-28",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public",
+    "run_worker_first": true,
+  },
   "send_metrics": false,
   "dependencies_instrumentation": {
     "enabled": false,
@@ -14,7 +19,7 @@
     "crons": ["17 3 * * *"],
   },
   "vars": {
-    "ALLOWED_EXTENSION_ORIGINS": "chrome-extension://nbgcpdcaeoihimognmdaknghgnelnifc",
+    "ALLOWED_EXTENSION_ORIGINS": "chrome-extension://nbgcpdcaeoihimognmdaknghgnelnifc,chrome-extension://ghemfokjomigchclibmamedgoepdnana",
     "FIREBASE_PROJECT_ID": "twitch-friends-2ea03",
     "TWITCH_OAUTH_CALLBACK_URL": "https://twitch-friends-api.yuravychivskii.workers.dev/oauth/callback",
   },

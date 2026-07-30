@@ -1,6 +1,7 @@
 export type Env = {
   ALLOWED_EXTENSION_ORIGINS: string;
   ALLOW_INSECURE_EMULATOR_AUTH?: string;
+  ASSETS: Fetcher;
   DB: D1Database;
   FIREBASE_PROJECT_ID: string;
   TWITCH_CLIENT_ID: string;

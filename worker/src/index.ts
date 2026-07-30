@@ -9,6 +9,7 @@ import {
   requireAllowedOrigin,
   withCors,
 } from './http';
+import { handleLegalRequest } from './legalPages';
 import { enforcePublicCallbackLimit, enforceRequestLimits } from './rateLimit';
 import {
   cleanupExpiredData,
@@ -306,9 +307,14 @@ export default {
 
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
-      validateEnvironment(env);
-
       const url = new URL(request.url);
+      const legalResponse = await handleLegalRequest(request, env.ASSETS);
+
+      if (legalResponse) {
+        return legalResponse;
+      }
+
+      validateEnvironment(env);
 
       if (url.pathname === '/oauth/callback') {
         return await handleOAuthCallback(request, env);
