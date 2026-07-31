@@ -1,4 +1,5 @@
 import { ApiError } from './errors';
+import { replaceFriendshipGraph, syncFriendshipNodes } from './firebaseDatabase';
 import { verifyFirebaseIdentity } from './firebaseAuth';
 import {
   errorResponse,
@@ -19,6 +20,7 @@ import {
   getFriendState,
   getPresenceFriends,
   getProfileByFirebaseUid,
+  listFriendshipEdges,
   removeAccount,
   removeFriendConnection,
   respondToFriendRequest,
@@ -48,8 +50,12 @@ async function sha256(value: string) {
 }
 
 function validateEnvironment(env: Env) {
+  const localFirebaseAdmin =
+    env.ALLOW_INSECURE_EMULATOR_AUTH === 'true' && env.FIREBASE_PROJECT_ID.startsWith('demo-');
+
   if (
     !env.FIREBASE_PROJECT_ID ||
+    (!env.FIREBASE_ADMIN_CONFIG && !localFirebaseAdmin) ||
     !env.TWITCH_CLIENT_ID ||
     !env.TWITCH_CLIENT_SECRET ||
     getAllowedOrigins(env).size === 0
@@ -197,6 +203,7 @@ async function handleOAuthCallback(request: Request, env: Env) {
     }
 
     await connectTwitchProfile(env.DB, oauthState.firebase_uid, profile);
+    await replaceFriendshipGraph(env, await listFriendshipEdges(env.DB));
 
     return oauthResultPage(true);
   } catch {
@@ -250,12 +257,16 @@ async function handleApiRequest(request: Request, env: Env) {
       throw new ApiError(400, 'invalid-argument', 'Friend request response is required.');
     }
 
-    await respondToFriendRequest(
-      env.DB,
-      identity.uid,
-      validateConnectionId(input.connectionId),
-      input.accept,
-    );
+    const connectionId = validateConnectionId(input.connectionId);
+
+    await respondToFriendRequest(env.DB, identity.uid, connectionId, input.accept);
+
+    if (input.accept) {
+      await syncFriendshipNodes(env, await listFriendshipEdges(env.DB), [
+        identity.uid,
+        connectionId,
+      ]);
+    }
     return json({ success: true });
   }
 
@@ -267,6 +278,7 @@ async function handleApiRequest(request: Request, env: Env) {
     );
 
     await removeFriendConnection(env.DB, identity.uid, connectionId);
+    await syncFriendshipNodes(env, await listFriendshipEdges(env.DB), [identity.uid, connectionId]);
     return json({ success: true });
   }
 
@@ -282,18 +294,26 @@ async function handleApiRequest(request: Request, env: Env) {
 
   if (path === '/api/presence-friends' && request.method === 'GET') {
     await enforceRequestLimits(env.DB, 'presence-friends', identity.uid, ip, 30, 90);
-    return json(await getPresenceFriends(env.DB, identity.uid));
+    const [presenceFriends, friendshipEdges] = await Promise.all([
+      getPresenceFriends(env.DB, identity.uid),
+      listFriendshipEdges(env.DB),
+    ]);
+
+    await syncFriendshipNodes(env, friendshipEdges, [identity.uid]);
+    return json(presenceFriends);
   }
 
   if (path === '/api/account/disconnect' && request.method === 'POST') {
     await enforceRequestLimits(env.DB, 'account-mutation', identity.uid, ip, 3, 10);
     const friendIds = await removeAccount(env.DB, identity.uid);
+    await syncFriendshipNodes(env, await listFriendshipEdges(env.DB), [identity.uid, ...friendIds]);
     return json({ friendIds, success: true });
   }
 
   if (path === '/api/account' && request.method === 'DELETE') {
     await enforceRequestLimits(env.DB, 'account-mutation', identity.uid, ip, 3, 10);
     const friendIds = await removeAccount(env.DB, identity.uid);
+    await syncFriendshipNodes(env, await listFriendshipEdges(env.DB), [identity.uid, ...friendIds]);
     return json({ friendIds, success: true });
   }
 
@@ -302,7 +322,10 @@ async function handleApiRequest(request: Request, env: Env) {
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await cleanupExpiredData(env.DB, Date.now());
+    await Promise.all([
+      cleanupExpiredData(env.DB, Date.now()),
+      listFriendshipEdges(env.DB).then((edges) => replaceFriendshipGraph(env, edges)),
+    ]);
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {

@@ -15,6 +15,13 @@ type OAuthStateRow = {
   firebase_uid: string;
 };
 
+export type FriendshipEdge = {
+  userAUid: string;
+  userBUid: string;
+};
+
+const maximumFriends = 100;
+
 function rowToProfile(row: UserRow): TwitchUser {
   const profile = {
     avatarUrl: row.avatar_url,
@@ -337,6 +344,17 @@ export async function respondToFriendRequest(
     throw new ApiError(404, 'not-found', 'Friend request not found.');
   }
 
+  if (accept) {
+    const [recipientCount, senderCount] = await Promise.all([
+      countFriends(database, recipient.twitch_id),
+      countFriends(database, sender.twitch_id),
+    ]);
+
+    if (recipientCount >= maximumFriends || senderCount >= maximumFriends) {
+      throw new ApiError(409, 'resource-exhausted', 'Friend limit reached.');
+    }
+  }
+
   const statements = [
     database
       .prepare('DELETE FROM friend_requests WHERE sender_id = ? AND recipient_id = ?')
@@ -357,6 +375,38 @@ export async function respondToFriendRequest(
   }
 
   await database.batch(statements);
+}
+
+async function countFriends(database: D1Database, twitchId: string) {
+  const row = await database
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM friendships
+       WHERE user_a = ? OR user_b = ?`,
+    )
+    .bind(twitchId, twitchId)
+    .first<{ count: number }>();
+
+  return row?.count ?? 0;
+}
+
+export async function listFriendshipEdges(database: D1Database): Promise<FriendshipEdge[]> {
+  const result = await database
+    .prepare(
+      `SELECT
+         user_a.firebase_uid AS user_a_uid,
+         user_b.firebase_uid AS user_b_uid
+       FROM friendships
+       JOIN users AS user_a ON user_a.twitch_id = friendships.user_a
+       JOIN users AS user_b ON user_b.twitch_id = friendships.user_b
+       ORDER BY friendships.user_a, friendships.user_b`,
+    )
+    .all<{ user_a_uid: string; user_b_uid: string }>();
+
+  return result.results.map((row) => ({
+    userAUid: row.user_a_uid,
+    userBUid: row.user_b_uid,
+  }));
 }
 
 export async function removeFriendConnection(

@@ -6,6 +6,7 @@ import {
   type TwitchChannel,
 } from '@/features/presence/twitchChannel';
 import {
+  refreshPresenceHeartbeat,
   refreshPresenceFriends,
   startPresenceSync,
   updatePresenceChannel,
@@ -53,6 +54,7 @@ function selectChannel(tabId: number, channel: TwitchChannel) {
   tabChannels.set(tabId, channel);
 
   if (unchanged) {
+    refreshPresenceHeartbeat();
     return;
   }
 

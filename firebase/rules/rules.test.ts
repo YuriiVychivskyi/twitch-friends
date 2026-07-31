@@ -68,18 +68,29 @@ describe('fail-closed Firebase rules', () => {
     await assertFails(set(reference, { value: 'blocked' }));
   });
 
-  it('allows users to manage only their own friendship edges', async () => {
-    const alice = testEnvironment.authenticatedContext('alice');
+  it('allows users to read only their server-managed friendship cache', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'friendships/alice/bob'), true);
+    });
 
-    await assertSucceeds(set(ref(alice.database(), 'friendships/alice/bob'), true));
+    const alice = testEnvironment.authenticatedContext('alice');
+    const bob = testEnvironment.authenticatedContext('bob');
+
     await assertSucceeds(get(ref(alice.database(), 'friendships/alice')));
-    await assertFails(set(ref(alice.database(), 'friendships/bob/alice'), true));
-    await assertFails(set(ref(alice.database(), 'friendships/alice/bob'), false));
+    await assertFails(get(ref(bob.database(), 'friendships/alice')));
   });
 
-  it('denies self-friendships', async () => {
+  it('denies client friendship creation, replacement, and deletion', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'friendships/alice/bob'), true);
+    });
+
     const alice = testEnvironment.authenticatedContext('alice');
 
+    await assertFails(set(ref(alice.database(), 'friendships/alice/charlie'), true));
+    await assertFails(set(ref(alice.database(), 'friendships/alice'), { charlie: true }));
+    await assertFails(remove(ref(alice.database(), 'friendships/alice')));
+    await assertFails(set(ref(alice.database(), 'friendships/bob/alice'), true));
     await assertFails(set(ref(alice.database(), 'friendships/alice/alice'), true));
   });
   it('denies presence for one-sided friendship edges', async () => {

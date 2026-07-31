@@ -1,17 +1,7 @@
-import { get, ref, remove, set } from 'firebase/database';
+import { get, ref, remove } from 'firebase/database';
 
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
 import { getFirebaseDatabase } from '@/infrastructure/firebase/firebaseDatabase';
-
-export async function syncFriendshipEdges(friendIds: string[]) {
-  const uid = await ensureAnonymousAuth();
-  const friendships = Object.fromEntries(friendIds.map((friendId) => [friendId, true]));
-
-  await set(
-    ref(getFirebaseDatabase(), `friendships/${uid}`),
-    friendIds.length === 0 ? null : friendships,
-  );
-}
 
 export async function clearRealtimeAccountData(friendIds: string[]) {
   const uid = await ensureAnonymousAuth();
@@ -24,8 +14,5 @@ export async function clearRealtimeAccountData(friendIds: string[]) {
   await Promise.all(
     [...recipients].map((friendId) => remove(ref(database, `presence/${friendId}/${uid}`))),
   );
-  await Promise.all([
-    remove(ref(database, `presence/${uid}`)),
-    remove(ref(database, `friendships/${uid}`)),
-  ]);
+  await remove(ref(database, `presence/${uid}`));
 }

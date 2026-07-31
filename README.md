@@ -15,6 +15,7 @@ ownership verification, account cleanup, and the Twitch sidebar integration are 
 - End-to-end encrypted, short-lived presence between accepted friends
 - Non-extractable local ECDH private keys
 - Twitch profiles, friendship metadata, and public keys stored in Cloudflare D1
+- Server-managed Realtime Database friendship cache derived only from Cloudflare D1
 - Anonymous Firebase Authentication and Realtime Database presence delivery
 - Popup actions for disconnecting Twitch and deleting account data
 - First-run disclosure and versioned acceptance of the Privacy Notice and Beta Terms
@@ -55,19 +56,22 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 
 ## Commands
 
-| Command                         | Purpose                                        |
-| ------------------------------- | ---------------------------------------------- |
-| `npm run dev`                   | Start Chrome development mode                  |
-| `npm run dev:firefox`           | Start Firefox development mode                 |
-| `npm run check`                 | Run formatting, linting, types, and unit tests |
-| `npm run test:rules`            | Test Firebase security rules                   |
-| `npm run worker:build`          | Validate the production Worker bundle          |
-| `npm run worker:dev`            | Start the local Worker and D1                  |
-| `npm run worker:migrate:local`  | Apply local D1 migrations                      |
-| `npm run worker:migrate:remote` | Apply production D1 migrations                 |
-| `npm run build`                 | Build the Chrome extension                     |
-| `npm run build:firefox`         | Build the Firefox extension                    |
-| `npm run firebase:emulators`    | Start Auth, Firestore, and Database emulators  |
+| Command                          | Purpose                                        |
+| -------------------------------- | ---------------------------------------------- |
+| `npm run dev`                    | Start Chrome development mode                  |
+| `npm run dev:firefox`            | Start Firefox development mode                 |
+| `npm run check`                  | Run formatting, linting, types, and unit tests |
+| `npm run test:rules`             | Test Firebase security rules                   |
+| `npm run firebase:rules:check`   | Verify the production Rules target and hash    |
+| `npm run firebase:rules:release` | Test and deploy production Database Rules      |
+| `npm run firebase:rules:smoke`   | Test access against production Database Rules  |
+| `npm run worker:build`           | Validate the production Worker bundle          |
+| `npm run worker:dev`             | Start the local Worker and D1                  |
+| `npm run worker:migrate:local`   | Apply local D1 migrations                      |
+| `npm run worker:migrate:remote`  | Apply production D1 migrations                 |
+| `npm run build`                  | Build the Chrome extension                     |
+| `npm run build:firefox`          | Build the Firefox extension                    |
+| `npm run firebase:emulators`     | Start Auth, Firestore, and Database emulators  |
 
 ## Privacy
 
@@ -93,8 +97,9 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 
 ## Production
 
-The Worker uses encrypted Cloudflare secrets named `TWITCH_CLIENT_ID` and
-`TWITCH_CLIENT_SECRET`. Never place either value in a `WXT_PUBLIC_` variable, extension bundle,
+The Worker uses encrypted Cloudflare secrets named `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and
+`FIREBASE_ADMIN_CONFIG`. The Firebase secret contains only `clientEmail`, `privateKey`, and the exact
+production `databaseUrl`. Never place these values in a `WXT_PUBLIC_` variable, extension bundle,
 Wrangler config, README, issue, or commit.
 
 The exact production Twitch OAuth redirect URL is:
@@ -113,6 +118,10 @@ npm run worker:deploy
 Firebase production uses Anonymous Authentication and Realtime Database only. Firestore remains
 fail-closed. Firebase Functions and a Firebase billing plan are not required.
 
+For a release that locks friendship writes, deploy the Worker first, update all beta installations,
+then run `npm run firebase:rules:release`. The command tests the rules, deploys them only to the fixed
+`twitch-friends-2ea03` production project, and runs an authenticated production access smoke-check.
+
 ## Closed beta
 
 The closed beta targets Chrome. The Firefox build remains compile-tested, but its per-install random
@@ -121,9 +130,25 @@ moz-extension:// origin is not included in the production CORS allowlist yet.
 Beta access will be provided to approved testers. Feedback and bug reports are welcome through the
 contact options below.
 
-## Next version
+## Roadmap
 
-- Batch encrypted presence updates into one Firebase request instead of one request per friend.
+### v0.1.2
+
+- Batch encrypted presence updates into one Firebase request for all friends.
+- Support offline, online on Twitch without watching a channel, and watching-a-channel states.
+- Style online and offline labels like Twitch category metadata with muted text and a lighter font weight.
+- Keep the existing purple channel link when a friend is watching a stream.
+- Keep backend refreshes within the existing request limits.
+- Update consent, privacy information, and the store description for online presence sharing.
+
+### v0.2.0
+
+- Add a Twitch Friends button and panel to the Twitch top navigation.
+- Show the number of active friends on the Twitch navigation button.
+- Show incoming friend request notifications together with the full Twitch panel.
+- Move Twitch profile, friends, requests, account controls, and settings into the Twitch panel.
+- Keep the browser popup focused on security and runtime status.
+- Localize the extension based on the Twitch interface language, with English as the fallback.
 
 ## Policies
 

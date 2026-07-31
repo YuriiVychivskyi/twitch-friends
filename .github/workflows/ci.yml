@@ -38,6 +38,7 @@ jobs:
 
       - run: npm ci
       - run: npm run check
+      - run: npm run firebase:rules:check
       - run: npm run test:rules
       - run: npm run worker:build
       - run: npm run build

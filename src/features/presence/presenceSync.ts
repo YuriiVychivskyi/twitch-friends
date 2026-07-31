@@ -1,4 +1,4 @@
-import { onDisconnect, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
+import { onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
 
 import { normalizeTwitchLogin } from '@/features/presence/twitchChannel';
 import {
@@ -7,7 +7,7 @@ import {
   type EncryptedPresence,
 } from '@/features/presence/presenceCrypto';
 import { saveFriendPresence, type FriendPresence } from '@/features/presence/friendPresence';
-import { syncFriendshipEdges } from '@/features/presence/friendshipEdges';
+import { isPresenceHeartbeatDue } from '@/features/presence/presenceHeartbeat';
 import { type TwitchChannel } from '@/features/presence/twitchChannel';
 import { requestBackend } from '@/infrastructure/backend/backendApi';
 import { ensureAnonymousAuth } from '@/infrastructure/firebase/firebaseAuth';
@@ -24,6 +24,7 @@ type PresenceFriend = {
 let activeChannel: TwitchChannel | null = null;
 let friends: PresenceFriend[] = [];
 let identity: LocalIdentity | null = null;
+let lastPresencePublishAt = 0;
 let presenceExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 let presencePublishTimer: ReturnType<typeof setTimeout> | null = null;
 let publishedRecipients = new Set<string>();
@@ -148,7 +149,6 @@ async function refreshFriends() {
   const result = await requestBackend<unknown>('/api/presence-friends');
 
   friends = parsePresenceFriends(result);
-  await syncFriendshipEdges(friends.map((friend) => friend.id));
 }
 
 async function clearPublishedPresence() {
@@ -184,7 +184,6 @@ async function publishPresence() {
       const reference = ref(database, `presence/${friend.id}/${uid}`);
       const encrypted = await encryptPresence(identity, friend.encryptionKey, activeChannel);
 
-      await onDisconnect(reference).remove();
       await set(reference, encrypted);
     }),
   );
@@ -194,6 +193,7 @@ async function publishPresence() {
       .map((recipientUid) => remove(ref(database, `presence/${recipientUid}/${uid}`))),
   );
   publishedRecipients = nextRecipients;
+  lastPresencePublishAt = Date.now();
 
   for (const result of [...publishResults, ...removalResults]) {
     if (result.status === 'rejected') {
@@ -356,6 +356,16 @@ export function updatePresenceChannel(channel: TwitchChannel | null) {
       reportPresenceError('Presence channel update failed', cause);
     });
   }, presencePublishDelay);
+}
+
+export function refreshPresenceHeartbeat() {
+  if (!activeChannel || !isPresenceHeartbeatDue(lastPresencePublishAt)) {
+    return;
+  }
+
+  void queuePresencePublish().catch((cause: unknown) => {
+    reportPresenceError('Presence content heartbeat failed', cause);
+  });
 }
 
 export function refreshPresenceFriends() {

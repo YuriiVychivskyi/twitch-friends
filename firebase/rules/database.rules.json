@@ -5,10 +5,7 @@
     "friendships": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid",
-        "$friendUid": {
-          ".validate": "$friendUid !== $uid && $friendUid.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.val() === true"
-        }
+        ".write": false
       }
     },
     "presence": {

@@ -26,6 +26,9 @@
     "test:worker": "vitest run --config vitest.worker.config.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:worker",
     "firebase:emulators": "firebase emulators:start --project demo-twitch-friends --only auth,database,firestore",
+    "firebase:rules:check": "node scripts/verifyFirebaseRules.mjs",
+    "firebase:rules:release": "npm run firebase:rules:check && npm run test:rules && firebase deploy --only database --project twitch-friends-2ea03 && npm run firebase:rules:smoke",
+    "firebase:rules:smoke": "node --env-file-if-exists=.env scripts/smokeFirebaseRules.mjs",
     "test:rules": "firebase emulators:exec --project demo-twitch-friends --only auth,database,firestore \"vitest run --config vitest.rules.config.ts\""
   },
   "engines": {

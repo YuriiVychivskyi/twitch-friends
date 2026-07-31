@@ -61,8 +61,8 @@ project, with the anonymous sign-in provider. Signature keys are cached accordin
 cache headers and refreshed once when a new key ID appears.
 
 A reinstall creates a new Firebase UID. Reconnecting the same Twitch account updates the D1 mapping
-to the new UID while retaining Twitch-ID-based relationships. The client republishes its public key
-and synchronizes its Realtime Database friendship edge.
+to the new UID while retaining Twitch-ID-based relationships. The client republishes its public key,
+and the Worker rebuilds the derived Realtime Database friendship cache from D1.
 
 The emulator-only unsigned-token path requires both `ALLOW_INSECURE_EMULATOR_AUTH=true` and a
 `demo-` Firebase project ID. That variable is absent from production configuration.
@@ -84,6 +84,11 @@ D1 is bound directly to the Worker and is not accessible from the extension. API
 valid Firebase bearer token. Users can read only their own profile, requests, and friendship view;
 mutations are derived from the authenticated UID rather than a client-supplied owner ID.
 
+D1 is the only friendship source of truth. Clients cannot write the Realtime Database friendship
+cache. The Worker synchronizes affected nodes after mutations and presence refreshes, and its daily
+reconciliation replaces the complete cache so unknown or stale edges are removed. Both D1 checks and
+a database trigger cap accepted friendships at 100 per account.
+
 Database uniqueness constraints prevent one Twitch account, login, or Firebase UID from owning
 multiple mappings. Foreign keys cascade profile deletion through requests, friendships, and public
 keys.
@@ -100,7 +105,8 @@ mailbox. A recipient may read and clear only their own mailbox. A sender may del
 outbound records. All other paths deny reads and writes.
 
 The client refreshes active presence every 30 seconds, applies a three-second publish debounce, and
-uses `onDisconnect` cleanup. It never persists plaintext viewing history.
+uses the short encrypted expiry to tolerate Manifest V3 service-worker suspension. Explicit account
+and channel cleanup removes active records. It never persists plaintext viewing history.
 
 ## API controls
 
@@ -113,10 +119,11 @@ uses `onDisconnect` cleanup. It never persists plaintext viewing history.
 - Network calls to Twitch have ten-second timeouts.
 - OAuth starts are limited per installation and address, with an additional ten-second cooldown.
 - API operations have separate hourly installation and address limits.
-- Accepted authenticated API work has a 5,000-request daily service budget.
+- Accepted authenticated API work has a 10,000-request daily service budget.
 - Public OAuth callbacks have an independent per-address limit and cannot consume that budget.
 - Rate-limit keys reset in place instead of growing once per hour.
-- A daily Worker cron deletes expired rate-limit/OAuth rows and old daily counters.
+- A daily Worker cron deletes expired rate-limit/OAuth rows and old daily counters, then reconciles
+  the complete derived Firebase friendship cache with D1.
 - Cloudflare Workers and D1 are deployed on the free plan; Firebase Functions are not used.
 - API and OAuth responses disable caching and never expose internal exception details.
 
@@ -148,6 +155,9 @@ a replacement anonymous account from being created until the user explicitly con
 - Production dependencies must have no known high or critical vulnerabilities.
 - Twitch secrets must exist only in Cloudflare encrypted secrets and ignored local development files.
 - Production Realtime Database rules must match the tested repository version.
+- The committed Rules hash and fixed production project alias must pass `firebase:rules:check`.
+- The post-deploy production smoke-check must confirm own-cache read access while foreign reads and
+  client friendship writes remain denied.
 - The Twitch Developer Console must contain only exact required OAuth redirect URLs.
 - The extension package must be inspected to confirm it contains no secrets or source maps with
   sensitive local data.

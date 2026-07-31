@@ -1,5 +1,4 @@
 import { isTwitchUserProfile, type TwitchUserProfile } from '@/features/friends/twitchUserProfile';
-import { syncFriendshipEdges } from '@/features/presence/friendshipEdges';
 import { BackendError, requestBackend } from '@/infrastructure/backend/backendApi';
 
 export type FriendConnection = {
@@ -95,11 +94,7 @@ function friendError(cause: unknown) {
 
 export async function getFriendState() {
   try {
-    const state = parseFriendState(await requestBackend<FriendState>('/api/friends'));
-
-    await syncFriendshipEdges(state.friends.map((friend) => friend.id));
-
-    return state;
+    return parseFriendState(await requestBackend<FriendState>('/api/friends'));
   } catch (cause) {
     throw friendError(cause);
   }
